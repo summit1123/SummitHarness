@@ -59,11 +59,14 @@ python3 install.py
 python3 install.py
 ```
 
-이 명령은 세 가지를 수행합니다.
+이 명령은 네 가지를 수행합니다.
 
 1. `plugins/codex-ralph-loop/`를 `~/.codex/plugins/codex-ralph-loop`로 복사
 2. `~/.agents/plugins/marketplace.json` 갱신
-3. `personal-skills/` 아래의 유효한 스킬을 `~/.agents/skills/`로 symlink 또는 copy
+3. `~/.codex/config.toml`에 `codex_hooks = true`를 보장
+4. `~/.codex/hooks.json`에 Ralph Stop hook dispatcher를 등록
+
+추가로 `personal-skills/` 아래의 유효한 스킬은 `~/.agents/skills/`로 symlink 또는 copy 됩니다.
 
 개인용 오버레이 없이 공개 플러그인만 설치하고 싶다면:
 
@@ -128,6 +131,27 @@ After that, review the generated task breakdown with me before running the loop.
 ```
 
 이 문단 자체는 README에서 복사해서 Codex에 바로 붙여 넣는 용도로 넣어둔 것입니다.
+
+## Stop hook Ralph 모드
+
+이제 bootstrap된 프로젝트에서는 두 가지 Ralph 모드를 쓸 수 있습니다.
+
+1. `./ralph.sh` 기반의 외부 orchestrator 루프
+2. `Stop` hook 기반의 같은 세션 self-loop
+
+두 번째 모드는 Codex 안에서 아래처럼 시작합니다.
+
+```text
+/ralph-loop "Build the first vertical slice. Emit <promise>COMPLETE</promise> when truly done." --completion-promise "<promise>COMPLETE</promise>" --max-iterations 20
+```
+
+멈추고 싶으면:
+
+```text
+/cancel-ralph
+```
+
+이 모드는 설치기가 `~/.codex/hooks.json`과 `~/.codex/config.toml`까지 맞춰 준 뒤, 프로젝트 안의 `.codex-loop/ralph-loop.json` 상태를 기준으로 Stop hook이 반복 continuation prompt를 만들어 주는 방식입니다.
 
 ## 설치 후 무슨 일이 일어나나
 

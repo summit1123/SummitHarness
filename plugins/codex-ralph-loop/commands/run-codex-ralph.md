@@ -15,3 +15,8 @@ Run the project-local Codex Ralph loop.
 - `COMPLETE`: open tasks, checks, and review gate all pass
 - `BLOCKED:reason`: human help is required
 - `DECIDE:question`: a real product decision is needed
+
+## Notes
+
+- This command is the external worker-style loop.
+- For same-session Stop-hook Ralph, use `/ralph-loop ...` instead.

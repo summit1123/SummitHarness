@@ -18,7 +18,9 @@ GITIGNORE_BLOCK = """# Codex Ralph loop
 .codex-loop/artifacts/*
 !.codex-loop/artifacts/.gitkeep
 .codex-loop/state.json
+.codex-loop/ralph-loop.json
 .codex-loop/logs/iteration-*.log
+.codex-loop/logs/ralph-hook.log
 """
 
 
@@ -67,6 +69,7 @@ def main() -> int:
 
     target_root.mkdir(parents=True, exist_ok=True)
 
+    copy_tree(template_root / ".codex", target_root / ".codex", args.force)
     copy_tree(template_root / ".codex-loop", target_root / ".codex-loop", args.force)
     copy_file(
         template_root / "scripts" / "codex_ralph.py",
@@ -78,12 +81,19 @@ def main() -> int:
         target_root / "scripts" / "import_hwpx_preview.py",
         args.force,
     )
+    copy_file(
+        template_root / "scripts" / "ralph_session.py",
+        target_root / "scripts" / "ralph_session.py",
+        args.force,
+    )
     copy_file(template_root / "ralph.sh", target_root / "ralph.sh", args.force)
 
     ralph_path = target_root / "ralph.sh"
     ralph_path.chmod(0o755)
     (target_root / "scripts" / "codex_ralph.py").chmod(0o755)
     (target_root / "scripts" / "import_hwpx_preview.py").chmod(0o755)
+    (target_root / "scripts" / "ralph_session.py").chmod(0o755)
+    (target_root / ".codex" / "hooks" / "ralph_stop.py").chmod(0o755)
 
     gitignore_path = target_root / ".gitignore"
     existing = gitignore_path.read_text(encoding="utf-8") if gitignore_path.exists() else ""
@@ -98,7 +108,7 @@ def main() -> int:
     print("  1. Edit .codex-loop/prd/PRD.md and SUMMARY.md")
     print("  2. Replace the sample tasks in .codex-loop/tasks.json")
     print("  3. Add real checks in .codex-loop/config.json")
-    print("  4. Run ./ralph.sh --once")
+    print("  4. Run ./ralph.sh --once or start /ralph-loop inside Codex")
     return 0
 
 

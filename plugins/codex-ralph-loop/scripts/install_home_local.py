@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -81,6 +82,51 @@ def install_plugin(plugin_root: Path, install_root: Path, marketplace_path: Path
     return install_root, marketplace_path
 
 
+def ensure_codex_hooks_enabled(config_path: Path) -> None:
+    if not config_path.exists():
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text("[features]\ncodex_hooks = true\n", encoding="utf-8")
+        return
+
+    text = config_path.read_text(encoding="utf-8")
+    if re.search(r"(?m)^codex_hooks\s*=\s*true\s*$", text):
+        return
+    if re.search(r"(?m)^codex_hooks\s*=\s*false\s*$", text):
+        text = re.sub(r"(?m)^codex_hooks\s*=\s*false\s*$", "codex_hooks = true", text, count=1)
+        config_path.write_text(text, encoding="utf-8")
+        return
+    if "[features]" in text:
+        text = text.replace("[features]", "[features]\ncodex_hooks = true", 1)
+    else:
+        if not text.endswith("\n"):
+            text += "\n"
+        text += "\n[features]\ncodex_hooks = true\n"
+    config_path.write_text(text, encoding="utf-8")
+
+
+def install_global_stop_hook(hooks_path: Path, install_root: Path) -> Path:
+    hooks = read_json(hooks_path, {"hooks": {}})
+    hook_map = hooks.setdefault("hooks", {})
+    stop_entries = hook_map.setdefault("Stop", [])
+    command = f'python3 "{(install_root / "scripts" / "stop_hook_dispatch.py").as_posix()}"'
+
+    filtered = []
+    for entry in stop_entries:
+        nested = entry.get("hooks", []) if isinstance(entry, dict) else []
+        keep = True
+        for hook in nested:
+            if isinstance(hook, dict) and hook.get("command") == command:
+                keep = False
+                break
+        if keep:
+            filtered.append(entry)
+
+    filtered.append({"hooks": [{"type": "command", "command": command}]})
+    hook_map["Stop"] = filtered
+    write_json(hooks_path, hooks)
+    return hooks_path
+
+
 def install_personal_skills(repo_root: Path, user_skills_dir: Path) -> list[str]:
     personal_root = repo_root / "personal-skills"
     if not personal_root.exists():
@@ -115,6 +161,16 @@ def parse_args() -> argparse.Namespace:
         help="Where optional personal skills should be linked",
     )
     parser.add_argument(
+        "--codex-config",
+        default=str(Path.home() / ".codex" / "config.toml"),
+        help="Codex config.toml to patch with codex_hooks = true",
+    )
+    parser.add_argument(
+        "--codex-hooks",
+        default=str(Path.home() / ".codex" / "hooks.json"),
+        help="Global hooks.json to update with the Ralph Stop hook dispatcher",
+    )
+    parser.add_argument(
         "--no-personal-skills",
         action="store_true",
         help="Skip installing repo-local personal skills",
@@ -130,10 +186,14 @@ def main() -> int:
     install_root = Path(args.plugin_dir).expanduser().resolve()
     marketplace_path = Path(args.marketplace).expanduser().resolve()
     user_skills_dir = Path(args.user_skills_dir).expanduser().resolve()
+    codex_config_path = Path(args.codex_config).expanduser().resolve()
+    codex_hooks_path = Path(args.codex_hooks).expanduser().resolve()
 
     installed_plugin_path, installed_marketplace = install_plugin(
         plugin_root, install_root, marketplace_path, home
     )
+    ensure_codex_hooks_enabled(codex_config_path)
+    installed_hooks = install_global_stop_hook(codex_hooks_path, install_root)
 
     personal = []
     if not args.no_personal_skills:
@@ -141,13 +201,15 @@ def main() -> int:
 
     print(f"Installed plugin to {installed_plugin_path}")
     print(f"Updated marketplace at {installed_marketplace}")
+    print(f"Enabled codex_hooks in {codex_config_path}")
+    print(f"Installed Stop hook dispatcher in {installed_hooks}")
     if personal:
         print("Installed personal skills:")
         for skill in personal:
             print(f"  - {skill}")
     elif not args.no_personal_skills:
         print("No personal skills were found under personal-skills/.")
-    print("Restart Codex if the plugin or skills do not appear immediately.")
+    print("Restart Codex if the plugin or hooks do not appear immediately.")
     return 0
 
 

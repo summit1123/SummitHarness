@@ -76,8 +76,10 @@ python3 scripts/install_home_local.py
 
 1. `plugins/codex-ralph-loop/`를 `~/.codex/plugins/codex-ralph-loop`로 복사합니다.
 2. `~/.agents/plugins/marketplace.json`에 플러그인을 등록합니다.
-3. 소스 저장소에 `personal-skills/`가 있으면 해당 스킬을 `~/.agents/skills/`로 symlink 또는 copy 합니다.
-4. 바로 보이지 않으면 Codex를 재시작합니다.
+3. `~/.codex/config.toml`에 `codex_hooks = true`를 보장합니다.
+4. `~/.codex/hooks.json`에 Ralph Stop hook dispatcher를 등록합니다.
+5. 소스 저장소에 `personal-skills/`가 있으면 해당 스킬을 `~/.agents/skills/`로 symlink 또는 copy 합니다.
+6. 바로 보이지 않으면 Codex를 재시작합니다.
 
 설치가 끝나면 Codex는 아래를 인식할 수 있습니다.
 
@@ -139,6 +141,29 @@ slash command가 surface에 노출되는 환경이라면 아래도 사용할 수
 /init-codex-ralph
 /run-codex-ralph
 ```
+
+## Hook-native Ralph
+
+이 플러그인은 이제 `./ralph.sh` 말고도 `Stop` hook 기반의 same-session Ralph를 지원합니다.
+
+시작:
+
+```text
+/ralph-loop "Build the first vertical slice. Emit <promise>COMPLETE</promise> when truly done." --completion-promise "<promise>COMPLETE</promise>" --max-iterations 20
+```
+
+취소:
+
+```text
+/cancel-ralph
+```
+
+구조는 이렇습니다.
+
+- 설치기가 전역 `~/.codex/hooks.json`에 dispatcher를 심음
+- bootstrap된 repo는 `.codex-loop/ralph-loop.json`에 현재 Ralph 상태를 저장함
+- `Stop` hook이 종료 시도를 continuation prompt로 바꿔 다시 먹임
+- iteration limit, completion promise, blocked/decide promise는 state와 hook script가 관리함
 
 ## 프로젝트를 bootstrap 하면
 

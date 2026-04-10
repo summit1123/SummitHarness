@@ -8,5 +8,6 @@ This directory is the runtime state for the loop.
 - `PROMPT.md`: the stable instruction block sent every iteration
 - `STEERING.md`: urgent manual course corrections
 - `logs/`, `history/`, `reviews/`: run records
+- `ralph-loop.json`: state for the Stop-hook self-loop mode
 
 The plugin is reusable. This directory is where the project becomes yours.

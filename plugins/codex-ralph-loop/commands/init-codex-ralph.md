@@ -8,7 +8,7 @@ Initialize the current project with Codex Ralph loop runtime files.
 2. Open `.codex-loop/prd/PRD.md` and `.codex-loop/tasks.json`
 3. Replace the sample brief and tasks with the real project
 4. Add build, lint, test, or screenshot commands in `.codex-loop/config.json`
-5. Run `./ralph.sh --once` to verify the loop works in this project
+5. Run `./ralph.sh --once` or start `/ralph-loop "..." --completion-promise "<promise>COMPLETE</promise>" --max-iterations 20` to verify the loop works in this project
 
 ## Notes
 
