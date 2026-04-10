@@ -1,13 +1,13 @@
 # SummitHarness
 
-`SummitHarness` packages a Codex-native Ralph loop as a reusable plugin bundle.
+`SummitHarness`는 Codex에서 바로 쓸 수 있는 Ralph loop를 플러그인 번들 형태로 배포하기 위한 저장소입니다.
 
-It is meant to cover two layers at once:
+이 저장소는 두 가지를 함께 다룹니다.
 
-- a public plugin that anyone can install into Codex
-- optional personal overlay skills that stay specific to your own working style
+- 누구나 설치할 수 있는 공개용 플러그인
+- 본인 취향과 작업 방식만 담는 개인용 오버레이 스킬
 
-## Repo layout
+## 저장소 구조
 
 ```text
 SummitHarness/
@@ -18,113 +18,104 @@ SummitHarness/
 └── install.sh
 ```
 
-## What the plugin contains
+## 플러그인에 들어있는 것
 
-The distributable plugin lives at
-[`plugins/codex-ralph-loop/`](./plugins/codex-ralph-loop/README.md).
+실제로 배포되는 플러그인은
+[`plugins/codex-ralph-loop/`](./plugins/codex-ralph-loop/README.md)에 있습니다.
 
-That bundle includes:
+이 번들에는 아래가 포함됩니다.
 
-- bundled `skills/` for PRD work, runtime loop execution, design gates, and review gates
-- `commands/` for explicit entry points
-- `templates/project/` for seeding a target repository
-- installer and bootstrap scripts
-- plugin assets and lightweight hook wiring
+- PRD 작성, runtime loop 실행, 디자인 게이트, 리뷰 게이트용 `skills/`
+- 명시적으로 진입할 수 있는 `commands/`
+- 대상 프로젝트를 초기화하는 `templates/project/`
+- 설치 스크립트와 bootstrap 스크립트
+- 플러그인 에셋과 가벼운 hook 설정
 
-## What deployment means
+## 여기서 말하는 배포란?
 
-For this repo, deployment means publishing the source to GitHub so another user
-can:
+이 저장소에서 배포는 npm 배포보다 GitHub에 소스를 공개하고, 다른 사용자가 아래 흐름으로 쓰게 하는 것을 뜻합니다.
 
-1. clone the repository
-2. run the installer
-3. restart Codex
-4. bootstrap a target project
-5. run `./ralph.sh`
+1. 저장소 clone
+2. 설치 스크립트 실행
+3. Codex 재시작
+4. 대상 프로젝트 bootstrap
+5. `./ralph.sh` 실행
 
-This is a plugin-source repository, not an npm package. An npm wrapper could be
-added later, but the installable artifact is still the plugin directory.
+즉 이 저장소는 npm 패키지라기보다 플러그인 소스 저장소에 가깝습니다. 나중에 npm 래퍼를 붙일 수는 있지만, 실제 설치 단위는 여전히 플러그인 디렉터리입니다.
 
-## Install for Codex
+## Codex에 설치하기
 
-From the cloned repository root:
+저장소를 clone한 뒤 루트에서 실행:
 
 ```bash
 python3 install.py
 ```
 
-That does three things:
+이 명령은 세 가지를 수행합니다.
 
-1. copies `plugins/codex-ralph-loop/` into `~/.codex/plugins/codex-ralph-loop`
-2. updates `~/.agents/plugins/marketplace.json`
-3. symlinks or copies any valid skills in `personal-skills/` into `~/.agents/skills/`
+1. `plugins/codex-ralph-loop/`를 `~/.codex/plugins/codex-ralph-loop`로 복사
+2. `~/.agents/plugins/marketplace.json` 갱신
+3. `personal-skills/` 아래의 유효한 스킬을 `~/.agents/skills/`로 symlink 또는 copy
 
-If you want only the public plugin and no personal overlays:
+개인용 오버레이 없이 공개 플러그인만 설치하고 싶다면:
 
 ```bash
 python3 install.py --no-personal-skills
 ```
 
-If Codex does not show the plugin or skills immediately, restart Codex.
+설치 후 Codex에서 바로 보이지 않으면 재시작하면 됩니다.
 
-## What happens after install
+## 설치 후 무슨 일이 일어나나
 
-After install, Codex can discover:
+설치가 끝나면 Codex는 아래를 인식할 수 있습니다.
 
-- the plugin manifest
-- the bundled plugin skills
-- the plugin commands
-- any user-specific skills installed from `personal-skills/`
+- 플러그인 manifest
+- 번들된 plugin skills
+- plugin commands
+- `personal-skills/`에서 설치된 개인용 스킬
 
-The plugin does not automatically start a loop. Install only makes the workflow
-available to Codex.
+중요한 점은 설치만으로 loop가 시작되지는 않는다는 거예요. 설치는 Codex가 이 workflow를 사용할 수 있게 만드는 단계입니다.
 
-## Bootstrap a target project
+## 대상 프로젝트 bootstrap
 
-Inside any target repository:
+대상 저장소 안에서 실행:
 
 ```bash
 python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 ```
 
-That creates:
+이 명령으로 아래 파일들이 생성됩니다.
 
-- `.codex-loop/` for PRD, tasks, steering notes, logs, and state
+- PRD, task, steering, logs, state를 담는 `.codex-loop/`
 - `scripts/codex_ralph.py`
 - `scripts/import_hwpx_preview.py`
 - `ralph.sh`
-- loop-related `.gitignore` entries
+- loop 관련 `.gitignore` 항목
 
-Then fill in the PRD and tasks and run:
+그 다음 PRD와 task를 채운 뒤 아래처럼 실행하면 됩니다.
 
 ```bash
 ./ralph.sh --once
 ```
 
-## Repo-local development
+## 저장소 자체를 Codex에서 열었을 때
 
-This repository also includes
-[`/.agents/plugins/marketplace.json`](./.agents/plugins/marketplace.json), so
-if you open `SummitHarness` itself in Codex, the repo-local plugin can be
-discovered without first installing it home-locally.
+이 저장소에는 [`/.agents/plugins/marketplace.json`](./.agents/plugins/marketplace.json)도 포함되어 있어서, `SummitHarness` 자체를 Codex에서 열면 home-local 설치를 하지 않아도 repo-local plugin으로 인식될 수 있습니다.
 
-## Personal overlays
+## 개인용 오버레이 스킬
 
-The public plugin should stay generally useful. Anything that is too specific to
-your own taste or workflow belongs under
-[`personal-skills/`](./personal-skills/README.md).
+공개 플러그인은 최대한 범용적으로 유지하고, 너무 개인적인 취향이나 작업 방식은 [`personal-skills/`](./personal-skills/README.md)에 두는 것을 권장합니다.
 
-Examples:
+예를 들면:
 
-- stricter review rules
-- stronger product taste
-- your preferred architecture defaults
-- custom escalation rules
+- 더 빡센 리뷰 기준
+- 더 강한 제품 감각 기준
+- 선호하는 아키텍처 기본값
+- 개인적인 escalation 규칙
 
-Those skills are not part of the public plugin contract. They are user-specific
-overlays installed into `~/.agents/skills/`.
+이 스킬들은 공개 플러그인의 계약 일부가 아니라, `~/.agents/skills/`에 설치되는 사용자 전용 오버레이입니다.
 
-## References
+## 참고 문서
 
 - [Codex plugins](https://developers.openai.com/codex/plugins/build)
 - [Codex skills](https://developers.openai.com/codex/skills)
