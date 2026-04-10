@@ -15,8 +15,6 @@
     "review_command": [
       "codex",
       "exec",
-      "-a",
-      "never",
       "-s",
       "read-only",
       "--skip-git-repo-check",

@@ -41,8 +41,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "review_command": [
             "codex",
             "exec",
-            "-a",
-            "never",
             "-s",
             "read-only",
             "--skip-git-repo-check",
