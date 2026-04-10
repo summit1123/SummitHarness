@@ -45,7 +45,15 @@ SummitHarness/
 
 ## Codex에 설치하기
 
-저장소를 clone한 뒤 루트에서 실행:
+처음 설치할 때는 아래 순서로 실행하면 됩니다.
+
+```bash
+git clone https://github.com/summit1123/SummitHarness.git
+cd SummitHarness
+python3 install.py
+```
+
+이미 저장소를 clone해 둔 상태라면 루트에서 아래만 실행해도 됩니다.
 
 ```bash
 python3 install.py
