@@ -1,0 +1,24 @@
+{
+  "id": "003",
+  "title": "Build the first end-to-end slice",
+  "status": "todo",
+  "priority": "p1",
+  "summary": "Ship one believable vertical slice that proves the product direction in code.",
+  "dependsOn": [
+    "001",
+    "002"
+  ],
+  "deliverables": [
+    "Actual project files",
+    "Local checks in .codex-loop/config.json"
+  ],
+  "acceptance": [
+    "A user can complete one meaningful workflow end to end.",
+    "Basic validation and failure handling exist.",
+    "Any new behavior is covered by checks or tests that can run in the loop."
+  ],
+  "notes": [
+    "Do not stop at scaffolding if a runnable slice is possible.",
+    "If design polish matters, verify it with screenshots once a UI exists."
+  ]
+}

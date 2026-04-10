@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "agent": {
+    "command": [
+      "codex",
+      "exec",
+      "--full-auto",
+      "--skip-git-repo-check",
+      "--cd",
+      "{project_root}",
+      "--output-last-message",
+      "{output_last_message}",
+      "-"
+    ],
+    "review_command": [
+      "codex",
+      "exec",
+      "-a",
+      "never",
+      "-s",
+      "read-only",
+      "--skip-git-repo-check",
+      "--cd",
+      "{project_root}",
+      "--output-last-message",
+      "{output_last_message}",
+      "-"
+    ],
+    "env": {}
+  },
+  "loop": {
+    "completion_promise": "COMPLETE",
+    "max_iterations": 8,
+    "mode": "implementation"
+  },
+  "checks": {
+    "commands": []
+  },
+  "review": {
+    "enabled": true,
+    "max_findings": 5
+  }
+}

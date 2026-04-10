@@ -1,0 +1,27 @@
+{
+  "project": "Codex Ralph Loop Workspace",
+  "selection": "priority-order",
+  "tasks": [
+    {
+      "id": "001",
+      "title": "Rewrite the PRD into a buildable brief",
+      "status": "todo",
+      "priority": "p0",
+      "file": "tasks/TASK-001.json"
+    },
+    {
+      "id": "002",
+      "title": "Define the user flow and design direction",
+      "status": "todo",
+      "priority": "p0",
+      "file": "tasks/TASK-002.json"
+    },
+    {
+      "id": "003",
+      "title": "Build the first end-to-end slice",
+      "status": "todo",
+      "priority": "p1",
+      "file": "tasks/TASK-003.json"
+    }
+  ]
+}

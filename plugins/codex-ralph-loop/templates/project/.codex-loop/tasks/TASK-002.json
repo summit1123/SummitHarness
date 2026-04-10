@@ -1,0 +1,23 @@
+{
+  "id": "002",
+  "title": "Define the user flow and design direction",
+  "status": "todo",
+  "priority": "p0",
+  "summary": "Translate the PRD into an actual interaction model and visual direction before implementation sprawls.",
+  "dependsOn": [
+    "001"
+  ],
+  "deliverables": [
+    ".codex-loop/prd/PRD.md",
+    ".codex-loop/tasks/TASK-002.json"
+  ],
+  "acceptance": [
+    "Primary user flow is written in order from entry to successful completion.",
+    "Design direction describes layout, tone, density, and interaction style.",
+    "Unknowns are reduced to a small list of explicit decisions."
+  ],
+  "notes": [
+    "When the product needs UI, plan the empty, loading, error, and success states.",
+    "Keep the direction specific enough that the UI will not default to generic AI styling."
+  ]
+}

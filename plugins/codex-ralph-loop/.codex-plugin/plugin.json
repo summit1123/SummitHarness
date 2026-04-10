@@ -1,0 +1,45 @@
+{
+  "name": "codex-ralph-loop",
+  "version": "0.1.0",
+  "description": "Project-local Codex loop for PRD-driven implementation, checks, and review gates.",
+  "author": {
+    "name": "gimdonghyeon",
+    "url": "https://github.com/gimdonghyeon"
+  },
+  "homepage": "https://example.com/codex-ralph-loop",
+  "repository": "https://example.com/codex-ralph-loop",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "ralph-loop",
+    "planning",
+    "review",
+    "automation"
+  ],
+  "skills": "./skills/",
+  "hooks": "./hooks.json",
+  "interface": {
+    "displayName": "Codex Ralph Loop",
+    "shortDescription": "PRD-driven build loops with local checks and a read-only review gate",
+    "longDescription": "Use Codex Ralph Loop to keep work grounded in a project-local PRD, task files, steering notes, checks, and a dedicated review pass instead of a blind retry loop.",
+    "developerName": "gimdonghyeon",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://example.com/codex-ralph-loop",
+    "privacyPolicyURL": "https://openai.com/policies/privacy-policy/",
+    "termsOfServiceURL": "https://openai.com/policies/terms-of-use/",
+    "defaultPrompt": [
+      "Run the Codex Ralph loop for my PRD and task files",
+      "Review my loop runtime and improve the evaluator gates",
+      "Turn a planning doc into a task-driven Codex build loop"
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/codex-ralph-loop-small.svg",
+    "logo": "./assets/codex-ralph-loop-logo.svg",
+    "screenshots": []
+  }
+}

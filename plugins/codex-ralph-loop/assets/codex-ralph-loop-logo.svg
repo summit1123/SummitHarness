@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" fill="none">
+  <rect width="320" height="180" rx="20" fill="#111827"/>
+  <path d="M86 91c0-24.301 19.699-44 44-44h58" stroke="#F9FAFB" stroke-width="14" stroke-linecap="round"/>
+  <path d="M234 91c0 24.301-19.699 44-44 44h-58" stroke="#60A5FA" stroke-width="14" stroke-linecap="round"/>
+  <path d="m176 40 28 10-10 28" stroke="#F9FAFB" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m144 140-28-10 10-28" stroke="#60A5FA" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="34" y="165" fill="#E5E7EB" font-family="Arial, sans-serif" font-size="24">Codex Ralph Loop</text>
+</svg>

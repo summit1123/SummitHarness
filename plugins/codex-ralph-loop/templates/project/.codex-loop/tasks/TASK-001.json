@@ -1,0 +1,21 @@
+{
+  "id": "001",
+  "title": "Rewrite the PRD into a buildable brief",
+  "status": "todo",
+  "priority": "p0",
+  "summary": "Turn the raw planning material into a product brief that an implementation loop can actually trust.",
+  "dependsOn": [],
+  "deliverables": [
+    ".codex-loop/prd/PRD.md",
+    ".codex-loop/prd/SUMMARY.md"
+  ],
+  "acceptance": [
+    "The PRD names the user, problem, outcome, and core flows.",
+    "The PRD includes functional and non-functional requirements.",
+    "The summary is short enough to send every iteration without noise."
+  ],
+  "notes": [
+    "If the source planning doc is vague, turn it into concrete assumptions and record them.",
+    "Do not invent hidden requirements without documenting them."
+  ]
+}
