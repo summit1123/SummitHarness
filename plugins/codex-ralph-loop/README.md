@@ -91,6 +91,47 @@ python3 scripts/install_home_local.py
 
 즉 설치만으로 Ralph loop가 시작되지는 않습니다. 설치는 Codex가 이 workflow를 사용할 수 있게 만드는 단계입니다.
 
+## Codex에 그대로 붙여 넣는 프롬프트
+
+이 플러그인은 설치 후 README의 프롬프트를 그대로 Codex에 붙여 넣어도 이해하고 동작할 수 있게 쓰는 것을 권장합니다. 특히 첫 실행은 아래처럼 명시적으로 skill 이름을 불러 주는 편이 가장 안정적입니다.
+
+### bootstrap
+
+```text
+Use $ralph-bootstrap to initialize this repository for Codex Ralph loop.
+```
+
+### PRD와 task 생성
+
+```text
+Use $ralph-prd to turn these requirements into .codex-loop/prd/PRD.md and .codex-loop/tasks.json.
+
+Requirements:
+- ...
+- ...
+```
+
+### loop 실행
+
+```text
+Use $codex-ralph-loop to run the project-local Ralph loop from the current PRD and task files.
+```
+
+### 한 번에 시작
+
+```text
+Use $ralph-bootstrap to initialize this repository for Codex Ralph loop.
+Then use $ralph-prd to convert my requirements into .codex-loop/prd/PRD.md and .codex-loop/tasks.json.
+After that, review the generated task breakdown with me before running the loop.
+```
+
+slash command가 surface에 노출되는 환경이라면 아래도 사용할 수 있습니다.
+
+```text
+/init-codex-ralph
+/run-codex-ralph
+```
+
 ## 프로젝트를 bootstrap 하면
 
 대상 저장소에서 아래 명령을 실행하면:

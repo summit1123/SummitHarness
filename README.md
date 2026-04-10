@@ -65,6 +65,62 @@ python3 install.py --no-personal-skills
 
 설치 후 Codex에서 바로 보이지 않으면 재시작하면 됩니다.
 
+## Codex에 바로 넘기는 방법
+
+설치가 끝났다고 해서 Codex가 자동으로 loop를 시작하는 건 아닙니다. 처음에는 아래 프롬프트를 그대로 붙여 넣는 방식이 가장 안정적입니다.
+
+### 1. 현재 프로젝트 bootstrap
+
+작업할 기존 저장소를 Codex로 연 다음, 아래를 그대로 붙여 넣으세요.
+
+```text
+Use $ralph-bootstrap to initialize this repository for Codex Ralph loop.
+```
+
+slash command가 보이는 surface라면 아래처럼 시작해도 됩니다.
+
+```text
+/init-codex-ralph
+```
+
+### 2. 기획을 PRD와 task로 변환
+
+bootstrap이 끝나면 아래처럼 요구사항을 넘깁니다.
+
+```text
+Use $ralph-prd to turn these requirements into .codex-loop/prd/PRD.md and .codex-loop/tasks.json.
+
+Requirements:
+- ...
+- ...
+```
+
+### 3. loop 실행
+
+PRD와 task를 확인한 뒤에는 아래처럼 실행합니다.
+
+```text
+Use $codex-ralph-loop to run the project-local Ralph loop from the current PRD and task files.
+```
+
+또는 slash command가 보이면:
+
+```text
+/run-codex-ralph
+```
+
+### 4. 한 번에 넘기고 싶다면
+
+아래 프롬프트 하나로 시작해도 됩니다.
+
+```text
+Use $ralph-bootstrap to initialize this repository for Codex Ralph loop.
+Then use $ralph-prd to convert my requirements into .codex-loop/prd/PRD.md and .codex-loop/tasks.json.
+After that, review the generated task breakdown with me before running the loop.
+```
+
+이 문단 자체는 README에서 복사해서 Codex에 바로 붙여 넣는 용도로 넣어둔 것입니다.
+
 ## 설치 후 무슨 일이 일어나나
 
 설치가 끝나면 Codex는 아래를 인식할 수 있습니다.
@@ -97,6 +153,8 @@ python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 ```bash
 ./ralph.sh --once
 ```
+
+하지만 실제 사용감은 터미널에서 직접 bootstrap 명령을 치는 것보다, 위의 "Codex에 바로 넘기는 방법" 섹션에 있는 프롬프트를 Codex에 붙여 넣는 쪽이 더 자연스럽습니다.
 
 ## 저장소 자체를 Codex에서 열었을 때
 
