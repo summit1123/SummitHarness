@@ -8,7 +8,7 @@
 - compressed context engine
 - preflight environment checks
 - approved asset registry
-- deterministic checks + read-only review gate
+- deterministic checks + read-only review gate + goal evaluator
 - Stop-hook same-session loop
 
 ## 설치
@@ -38,6 +38,7 @@ python3 scripts/install_home_local.py
 - `.codex-loop/prd/`
 - `.codex-loop/tasks.json`
 - `.codex-loop/context/`
+- `.codex-loop/evals/`
 - `.codex-loop/assets/registry.json`
 - `.codex-loop/preflight/`
 - `scripts/codex_ralph.py`
@@ -80,13 +81,15 @@ python3 scripts/context_engine.py refresh --source bootstrap
 5. context refresh
 6. 첫 `./ralph.sh` 또는 `/ralph-loop` 실행
 7. Ralph가 task graph를 auto-seed하고 계속 진행
+8. Goal evaluator가 매 iteration마다 실제 목표 충족 여부를 다시 판단
 
-가장 먼저 확인해야 하는 파일은 아래 넷입니다.
+가장 먼저 확인해야 하는 파일은 아래 다섯 가지입니다.
 
 - `.codex-loop/prd/PRD.md`
 - `.codex-loop/preflight/REPORT.md`
 - `.codex-loop/context/handoff.md`
 - `.codex-loop/tasks.json`
+- `.codex-loop/evals/`
 
 이 파일들이 각각 목표, 환경 상태, 다음 행동, 작업 그래프를 보여줍니다.
 
@@ -98,9 +101,10 @@ python3 scripts/context_engine.py refresh --source bootstrap
 2. preflight가 toolchain과 config 상태 점검
 3. context engine이 repo state를 압축
 4. loop runner가 handoff packet을 포함한 prompt로 worker 실행
-5. checks와 review gate 실행
-6. 로그와 state 저장
-7. 다음 iteration 전 handoff 재생성
+5. checks, review gate, goal evaluator 실행
+6. 필요하면 replanning pass가 task graph를 보정
+7. 로그와 state 저장
+8. 다음 iteration 전 handoff 재생성
 
 즉 사용자는 짧은 명령만 치지만, 하네스 내부에서는 `preflight -> compression -> execution -> evaluation -> refresh` 순환이 계속 일어납니다.
 

@@ -74,7 +74,7 @@ def context_dir_from(state_dir: Path) -> Path:
 
 def ensure_context_layout(project_root: Path, state_dir: Path) -> None:
     context_dir = context_dir_from(state_dir)
-    for rel in ["context", "preflight", "assets", "logs", "history", "reviews"]:
+    for rel in ["context", "preflight", "assets", "logs", "history", "reviews", "evals"]:
         (state_dir / rel).mkdir(parents=True, exist_ok=True)
 
     durable_path = context_dir / "durable.json"
@@ -291,6 +291,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         f"- Loop iteration: {latest_state.get('iteration', 'n/a')} / {latest_state.get('maxIterations', 'n/a')}",
         f"- Checks: {latest_state.get('checksSummary', 'No loop checks have run yet.')}",
         f"- Review: {latest_state.get('reviewSummary', 'No review gate has run yet.')}",
+        f"- Goal eval: {latest_state.get('evalSummary', 'No goal evaluator result yet.')}",
         f"- Hook loop: {latest_hook.get('status', 'inactive')}",
         "",
         "## Open Tasks",
@@ -337,6 +338,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         f"- Active task: {active_task.get('id')} {active_task.get('title')}" if active_task else "- Active task: none",
         f"- Check state: {latest_state.get('checksSummary', 'not run')}",
         f"- Review state: {latest_state.get('reviewSummary', 'not run')}",
+        f"- Goal eval: {latest_state.get('evalSummary', 'not run')}",
         f"- Hook state: {latest_hook.get('status', 'inactive')}",
         "",
         "## Must Remember",
@@ -365,6 +367,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         "preflightBlockers": blockers,
         "preflightWarnings": warnings,
         "approvedAssets": assets,
+        "evalSummary": latest_state.get("evalSummary", "not run"),
     }
     return "\n".join(current_state_lines).rstrip() + "\n", "\n".join(handoff_lines).rstrip() + "\n", payload
 

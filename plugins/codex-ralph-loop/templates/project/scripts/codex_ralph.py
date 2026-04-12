@@ -30,6 +30,8 @@ ERROR_EXIT = 4
 
 PROMISE_RE = re.compile(r"<promise>(.*?)</promise>", re.DOTALL)
 REVIEW_RE = re.compile(r"RESULT:\s*(PASS|FAIL)", re.IGNORECASE)
+EVAL_RESULT_RE = re.compile(r"RESULT:\s*(PASS|FAIL)", re.IGNORECASE)
+EVAL_STATUS_RE = re.compile(r"STATUS:\s*(COMPLETE|INCOMPLETE|BLOCKED|DECIDE)", re.IGNORECASE)
 PRIORITY_ORDER = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
 DEFAULT_TEMPLATE_TASK_TITLES = {
     "Brainstorm and lock the build brief",
@@ -78,6 +80,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "review": {
         "enabled": True,
         "max_findings": 5,
+    },
+    "evaluator": {
+        "enabled": True,
+        "require_pass_for_completion": True,
+        "auto_extend_tasks": True,
     },
     "context": {
         "enabled": True,
@@ -315,6 +322,52 @@ def parse_review_result(text: str) -> tuple[bool, str]:
     return verdict, first_nonempty_line(text)
 
 
+def prefixed_value(text: str, label: str) -> str:
+    needle = f"{label.strip().upper()}:"
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+        if stripped.upper().startswith(needle):
+            return stripped.split(":", 1)[1].strip()
+    return ""
+
+
+def parse_evaluator_result(text: str) -> dict[str, Any]:
+    result_match = EVAL_RESULT_RE.search(text or "")
+    status_match = EVAL_STATUS_RE.search(text or "")
+    summary = prefixed_value(text, "SUMMARY") or first_nonempty_line(text) or "Evaluator did not provide a summary."
+    next_step = prefixed_value(text, "NEXT") or summary
+
+    if not result_match:
+        return {
+            "passed": False,
+            "status": "INCOMPLETE",
+            "summary": "Evaluator did not emit RESULT: PASS or RESULT: FAIL.",
+            "next": "Inspect the evaluator prompt or eval log.",
+            "raw": text,
+        }
+
+    passed = result_match.group(1).upper() == "PASS"
+    status = status_match.group(1).upper() if status_match else ("COMPLETE" if passed else "INCOMPLETE")
+    return {
+        "passed": passed,
+        "status": status,
+        "summary": summary,
+        "next": next_step,
+        "raw": text,
+    }
+
+
+def should_auto_extend_tasks(tasks: list[dict[str, Any]], evaluation: dict[str, Any], config: dict[str, Any]) -> bool:
+    evaluator_cfg = config.get("evaluator", {})
+    return (
+        bool(evaluator_cfg.get("enabled", True))
+        and bool(evaluator_cfg.get("auto_extend_tasks", True))
+        and all_tasks_complete(tasks)
+        and not bool(evaluation.get("passed"))
+        and str(evaluation.get("status", "INCOMPLETE")).upper() == "INCOMPLETE"
+    )
+
+
 def first_nonempty_line(text: str, limit: int = 160) -> str:
     for line in (text or "").splitlines():
         line = line.strip()
@@ -504,6 +557,206 @@ Use FAIL only when there is at least one material issue still open.
 """
 
 
+def build_goal_eval_prompt(
+    *,
+    config: dict[str, Any],
+    state_dir: Path,
+    task: dict[str, Any] | None,
+    task_body: dict[str, Any] | None,
+    checks_summary: str,
+    review_summary: str,
+) -> str:
+    prd_md = read_text(state_dir / "prd" / "PRD.md")
+    summary_md = read_text(state_dir / "prd" / "SUMMARY.md")
+    handoff_md = read_text(state_dir / "context" / "handoff.md") or "No compressed handoff exists yet."
+    tasks_index = load_tasks_index(state_dir)
+    task_graph = json.dumps(tasks_index, ensure_ascii=False, indent=2)
+    task_index = json.dumps(task, ensure_ascii=False, indent=2) if task else "{}"
+    task_spec = json.dumps(task_body or {}, ensure_ascii=False, indent=2)
+
+    return f"""You are the goal evaluator for a SummitHarness Codex loop. Work read-only.
+
+Judge whether the actual goal has been met, not just whether the listed tasks were checked off.
+Focus on:
+- goal completion against the PRD and summary
+- missing deliverables or weak evidence
+- task graph drift, where remaining work is not represented in the plan
+- false completion claims
+
+Project summary:
+{summary_md}
+
+Current PRD:
+{prd_md}
+
+Compressed context packet:
+{handoff_md}
+
+Current task graph:
+```json
+{task_graph}
+```
+
+Active task index entry:
+```json
+{task_index}
+```
+
+Active task spec:
+```json
+{task_spec}
+```
+
+Checks summary:
+{checks_summary}
+
+Review summary:
+{review_summary}
+
+Respond exactly in this shape:
+RESULT: PASS or FAIL
+STATUS: COMPLETE or INCOMPLETE or BLOCKED or DECIDE
+SUMMARY: one sentence
+NEXT: one sentence
+MISSING:
+- none
+
+Rules:
+- PASS only when the repo is genuinely in a shippable state for the current goal.
+- FAIL if work remains, evidence is weak, or the task graph no longer covers the goal.
+- Use BLOCKED only when a real external blocker prevents trustworthy progress.
+- Use DECIDE only when a real human product decision is required.
+"""
+
+
+def build_task_replan_prompt(
+    *,
+    config: dict[str, Any],
+    state_dir: Path,
+    steering_text: str,
+    git_available: bool,
+    evaluation: dict[str, Any],
+) -> str:
+    prompt_md = read_text(state_dir / "PROMPT.md")
+    prd_md = read_text(state_dir / "prd" / "PRD.md")
+    summary_md = read_text(state_dir / "prd" / "SUMMARY.md")
+    handoff_md = read_text(state_dir / "context" / "handoff.md") or "No compressed handoff exists yet."
+    tasks_index = load_tasks_index(state_dir)
+    task_graph = json.dumps(tasks_index, ensure_ascii=False, indent=2)
+    steering_block = steering_text or "No active steering notes."
+    git_note = (
+        "Git is available. Refresh the task graph in place and keep completed work accurately marked."
+        if git_available
+        else "Git is not available. Refresh the task graph in place and keep completed work accurately marked."
+    )
+
+    return f"""You are refreshing the SummitHarness task graph because the goal evaluator found remaining work.
+
+Mode: {config['loop']['mode']}
+Promise contract:
+- Emit <promise>DECIDE:question</promise> only if a critical ambiguity blocks trustworthy replanning.
+- Emit <promise>BLOCKED:reason</promise> only if you truly cannot proceed.
+- Emit <promise>{config['loop']['completion_promise']}</promise> only when the task graph has been updated and there is a clear next action.
+
+Your job right now is planning, not product implementation.
+
+Required outcomes:
+- Update `.codex-loop/tasks.json` and `.codex-loop/tasks/TASK-*.json` so the remaining work is represented truthfully.
+- Preserve or mark already completed work accurately instead of erasing it.
+- Add, reopen, reorder, or tighten tasks so there is one clearly runnable next task.
+- If the goal is actually complete and only task state drifted, fix the task state instead of inventing fake work.
+- {git_note}
+
+Goal evaluator verdict:
+RESULT: {'PASS' if evaluation.get('passed') else 'FAIL'}
+STATUS: {evaluation.get('status', 'INCOMPLETE')}
+SUMMARY: {evaluation.get('summary', 'No evaluator summary available.')}
+NEXT: {evaluation.get('next', 'No next step provided.')}
+
+Current task graph:
+```json
+{task_graph}
+```
+
+Compressed context packet:
+{handoff_md}
+
+Base prompt:
+{prompt_md}
+
+Current PRD:
+{prd_md}
+
+Current summary:
+{summary_md}
+
+Steering:
+{steering_block}
+"""
+
+
+def run_goal_evaluator(
+    *,
+    config: dict[str, Any],
+    state_dir: Path,
+    project_root: Path,
+    label: str,
+    task: dict[str, Any] | None,
+    task_body: dict[str, Any] | None,
+    checks_summary: str,
+    review_summary: str,
+) -> dict[str, Any]:
+    command_value = config.get("evaluator", {}).get("command") or config["agent"]["review_command"]
+    eval_last_message = state_dir / "evals" / f"{label}-last.md"
+    eval_log = state_dir / "evals" / f"{label}.log"
+    eval_prompt = build_goal_eval_prompt(
+        config=config,
+        state_dir=state_dir,
+        task=task,
+        task_body=task_body,
+        checks_summary=checks_summary,
+        review_summary=review_summary,
+    )
+    eval_result = run_codex(
+        prompt=eval_prompt,
+        command_value=command_value,
+        project_root=project_root,
+        output_last_message=eval_last_message,
+        log_path=eval_log,
+        extra_env=config["agent"].get("env", {}),
+    )
+    return parse_evaluator_result(eval_result["last_message"])
+
+
+def run_task_replan(
+    *,
+    config: dict[str, Any],
+    state_dir: Path,
+    project_root: Path,
+    label: str,
+    steering_text: str,
+    git_available: bool,
+    evaluation: dict[str, Any],
+) -> dict[str, Any]:
+    replan_last_message = state_dir / "history" / f"{label}-last.md"
+    replan_log = state_dir / "history" / f"{label}.log"
+    replan_prompt = build_task_replan_prompt(
+        config=config,
+        state_dir=state_dir,
+        steering_text=steering_text,
+        git_available=git_available,
+        evaluation=evaluation,
+    )
+    return run_codex(
+        prompt=replan_prompt,
+        command_value=config["agent"]["command"],
+        project_root=project_root,
+        output_last_message=replan_last_message,
+        log_path=replan_log,
+        extra_env=config["agent"].get("env", {}),
+    )
+
+
 def run_codex(
     *,
     prompt: str,
@@ -622,6 +875,7 @@ def append_loop_log(
     promise: str,
     checks_summary: str,
     review_summary: str,
+    eval_summary: str,
     message: str,
 ) -> None:
     log_path = state_dir / "logs" / "LOG.md"
@@ -634,6 +888,7 @@ def append_loop_log(
         f"- Promise: {promise or 'none'}",
         f"- Checks: {checks_summary}",
         f"- Review: {review_summary}",
+        f"- Goal Eval: {eval_summary}",
         f"- Summary: {message or 'No assistant summary captured.'}",
         "",
     ]
@@ -642,7 +897,7 @@ def append_loop_log(
 
 
 def ensure_state_dirs(state_dir: Path) -> None:
-    for rel in ["history", "reviews", "artifacts", "logs", "prd", "tasks", "assets", "preflight", "context"]:
+    for rel in ["history", "reviews", "evals", "artifacts", "logs", "prd", "tasks", "assets", "preflight", "context"]:
         (state_dir / rel).mkdir(parents=True, exist_ok=True)
 
 
@@ -676,6 +931,8 @@ def main() -> int:
 
     max_iterations = int(config["loop"]["max_iterations"])
     review_enabled = bool(config["review"].get("enabled", True)) and not args.skip_review
+    evaluator_enabled = bool(config.get("evaluator", {}).get("enabled", True))
+    evaluator_required = bool(config.get("evaluator", {}).get("require_pass_for_completion", True))
     check_commands = [] if args.skip_checks else list(config["checks"].get("commands", []))
     stop_on_failure = bool(config["checks"].get("stop_on_failure", True))
 
@@ -728,13 +985,85 @@ def main() -> int:
             promise=seed_promise or "seeded",
             checks_summary="Not run.",
             review_summary="Not run.",
+            eval_summary="Not run.",
             message=first_nonempty_line(seed_result["last_message"]) or "Task graph bootstrap completed.",
         )
 
     if all_tasks_complete(tasks):
-        print("All tasks are already complete.")
-        maybe_refresh_context(project_root, state_dir, config, "loop-complete")
-        return COMPLETE_EXIT
+        evaluation = {
+            "passed": True,
+            "status": "COMPLETE",
+            "summary": "Goal evaluator skipped.",
+            "next": "No evaluator configured.",
+        }
+        if evaluator_enabled:
+            evaluation = run_goal_evaluator(
+                config=config,
+                state_dir=state_dir,
+                project_root=project_root,
+                label="precomplete-eval",
+                task=None,
+                task_body=None,
+                checks_summary="Not run.",
+                review_summary="Not run.",
+            )
+            write_json(
+                state_dir / "state.json",
+                {
+                    "updatedAt": now_iso(),
+                    "iteration": 0,
+                    "maxIterations": max_iterations,
+                    "promise": "",
+                    "task": None,
+                    "checksPassed": True,
+                    "checksSummary": "Not run.",
+                    "reviewPassed": True,
+                    "reviewSummary": "Not run.",
+                    "evalPassed": bool(evaluation.get("passed")),
+                    "evalStatus": evaluation.get("status", "INCOMPLETE"),
+                    "evalSummary": evaluation.get("summary", "No evaluator summary."),
+                    "allTasksComplete": all_tasks_complete(tasks),
+                    "gitAvailable": git_available,
+                },
+            )
+            maybe_refresh_context(project_root, state_dir, config, "precomplete-eval")
+            if str(evaluation.get("status", "")).upper() == "BLOCKED":
+                print(f"Goal evaluator blocked completion: {evaluation.get('summary', '')}")
+                return BLOCKED_EXIT
+            if str(evaluation.get("status", "")).upper() == "DECIDE":
+                print(f"Goal evaluator needs a decision: {evaluation.get('summary', '')}")
+                return DECIDE_EXIT
+            if not bool(evaluation.get("passed")):
+                if should_auto_extend_tasks(tasks, evaluation, config):
+                    steering_text = active_steering(read_text(state_dir / "STEERING.md"))
+                    replan_result = run_task_replan(
+                        config=config,
+                        state_dir=state_dir,
+                        project_root=project_root,
+                        label="precomplete-replan",
+                        steering_text=steering_text,
+                        git_available=git_available,
+                        evaluation=evaluation,
+                    )
+                    replan_promise = parse_promise(replan_result["last_message"])
+                    maybe_refresh_context(project_root, state_dir, config, "precomplete-replan")
+                    tasks = load_tasks(state_dir)
+                    if replan_promise.startswith("BLOCKED:"):
+                        print(f"Task replan blocked: {replan_promise}")
+                        return BLOCKED_EXIT
+                    if replan_promise.startswith("DECIDE:"):
+                        print(f"Task replan needs a decision: {replan_promise}")
+                        return DECIDE_EXIT
+                    if all_tasks_complete(tasks):
+                        print("Goal evaluator found remaining work, but task replan did not open any actionable tasks.", file=sys.stderr)
+                        return ERROR_EXIT
+                else:
+                    print(f"All tasks are marked complete, but the goal evaluator says the goal is not yet met: {evaluation.get('summary', '')}")
+                    return DECIDE_EXIT
+        if all_tasks_complete(tasks):
+            print("All tasks are already complete.")
+            maybe_refresh_context(project_root, state_dir, config, "loop-complete")
+            return COMPLETE_EXIT
 
     for iteration in range(1, max_iterations + 1):
         tasks = load_tasks(state_dir)
@@ -753,6 +1082,7 @@ def main() -> int:
                 promise="DECIDE:dependency-order",
                 checks_summary="Not run.",
                 review_summary="Not run.",
+                eval_summary="Not run.",
                 message=summary,
             )
             state_payload = {
@@ -765,6 +1095,9 @@ def main() -> int:
                 "checksSummary": "Not run.",
                 "reviewPassed": False,
                 "reviewSummary": "Not run.",
+                "evalPassed": False,
+                "evalStatus": "INCOMPLETE",
+                "evalSummary": "Not run.",
                 "allTasksComplete": False,
                 "gitAvailable": git_available,
                 "blockedTasks": blocked,
@@ -822,8 +1155,50 @@ def main() -> int:
             review_passed = False
             review_summary = "Skipped because local checks failed."
 
+        evaluation = {
+            "passed": True,
+            "status": "COMPLETE",
+            "summary": "Goal evaluator skipped.",
+            "next": "No evaluator configured.",
+        }
+        if evaluator_enabled:
+            evaluation = run_goal_evaluator(
+                config=config,
+                state_dir=state_dir,
+                project_root=project_root,
+                label=f"iteration-{iteration:03d}-eval",
+                task=task,
+                task_body=task_body,
+                checks_summary=checks["summary"],
+                review_summary=review_summary,
+            )
+
         tasks = load_tasks(state_dir)
-        finished = all_tasks_complete(tasks) and checks["passed"] and review_passed
+        replan_summary = ""
+        replan_signal = ""
+        if should_auto_extend_tasks(tasks, evaluation, config):
+            replan_result = run_task_replan(
+                config=config,
+                state_dir=state_dir,
+                project_root=project_root,
+                label=f"iteration-{iteration:03d}-replan",
+                steering_text=steering_text,
+                git_available=git_available,
+                evaluation=evaluation,
+            )
+            replan_signal = parse_promise(replan_result["last_message"])
+            maybe_refresh_context(project_root, state_dir, config, f"iteration-{iteration}-replan")
+            tasks = load_tasks(state_dir)
+            replan_summary = first_nonempty_line(replan_result["last_message"]) or "Task graph refreshed after evaluator failure."
+            if all_tasks_complete(tasks) and not replan_signal.startswith(("BLOCKED:", "DECIDE:")):
+                print("Goal evaluator found remaining work, but task replan did not open any actionable tasks.", file=sys.stderr)
+                return ERROR_EXIT
+
+        require_eval_pass = evaluator_enabled and evaluator_required
+        eval_summary = evaluation.get("summary", "No evaluator summary.")
+        if replan_summary:
+            eval_summary = f"{eval_summary} Replan: {replan_summary}"
+        finished = all_tasks_complete(tasks) and checks["passed"] and review_passed and (not require_eval_pass or (bool(evaluation.get("passed")) and str(evaluation.get("status", "COMPLETE")).upper() == "COMPLETE"))
         state_payload = {
             "updatedAt": now_iso(),
             "iteration": iteration,
@@ -834,10 +1209,19 @@ def main() -> int:
             "checksSummary": checks["summary"],
             "reviewPassed": review_passed,
             "reviewSummary": review_summary,
+            "evalPassed": bool(evaluation.get("passed")),
+            "evalStatus": evaluation.get("status", "INCOMPLETE"),
+            "evalSummary": eval_summary,
+            "evalNext": evaluation.get("next", ""),
             "allTasksComplete": all_tasks_complete(tasks),
             "gitAvailable": git_available,
+            "replanSummary": replan_summary,
         }
         write_json(state_dir / "state.json", state_payload)
+
+        loop_message = first_nonempty_line(worker_result["last_message"])
+        if replan_summary:
+            loop_message = (loop_message + " " + replan_summary).strip()
 
         append_loop_log(
             state_dir,
@@ -846,26 +1230,28 @@ def main() -> int:
             promise=promise,
             checks_summary=checks["summary"],
             review_summary=review_summary,
-            message=first_nonempty_line(worker_result["last_message"]),
+            eval_summary=eval_summary,
+            message=loop_message,
         )
         maybe_refresh_context(project_root, state_dir, config, f"iteration-{iteration}-after")
 
         print(f"[iteration {iteration}] task={task.get('id') if task else 'none'}")
         print(f"[iteration {iteration}] checks={checks['summary']}")
         print(f"[iteration {iteration}] review={review_summary}")
+        print(f"[iteration {iteration}] goal-eval={eval_summary}")
         if promise:
             print(f"[iteration {iteration}] promise={promise}")
 
-        if promise.startswith("BLOCKED:"):
+        if promise.startswith("BLOCKED:") or replan_signal.startswith("BLOCKED:") or str(evaluation.get("status", "")).upper() == "BLOCKED":
             return BLOCKED_EXIT
-        if promise.startswith("DECIDE:"):
+        if promise.startswith("DECIDE:") or replan_signal.startswith("DECIDE:") or str(evaluation.get("status", "")).upper() == "DECIDE":
             return DECIDE_EXIT
         if promise == config["loop"]["completion_promise"] and finished:
             print("Loop completed with a valid completion promise.")
             maybe_refresh_context(project_root, state_dir, config, "loop-complete")
             return COMPLETE_EXIT
         if finished:
-            print("Loop completed because all tasks, checks, and review gates passed.")
+            print("Loop completed because tasks, checks, review, and goal evaluation all passed.")
             maybe_refresh_context(project_root, state_dir, config, "loop-complete")
             return COMPLETE_EXIT
 

@@ -43,5 +43,10 @@
   "context": {
     "enabled": true,
     "refresh_each_iteration": true
+  },
+  "evaluator": {
+    "enabled": true,
+    "require_pass_for_completion": true,
+    "auto_extend_tasks": true
   }
 }

@@ -16,6 +16,8 @@ GITIGNORE_BLOCK = """# Codex Ralph loop
 !.codex-loop/history/.gitkeep
 .codex-loop/reviews/*
 !.codex-loop/reviews/.gitkeep
+.codex-loop/evals/*
+!.codex-loop/evals/.gitkeep
 .codex-loop/artifacts/*
 !.codex-loop/artifacts/.gitkeep
 .codex-loop/state.json

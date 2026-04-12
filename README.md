@@ -8,7 +8,7 @@
 - 압축 컨텍스트 엔진
 - preflight 환경 점검
 - 디자인/자산 파이프라인
-- review gate와 deterministic checks
+- review gate, goal evaluator, deterministic checks
 - Stop-hook 기반 same-session loop
 
 즉 목표는 "기획서 넣으면 그럴듯한 코드"가 아니라, **기획 -> 디자인 방향 -> 자산 -> 구현 -> 평가 -> handoff**까지 이어지는 재사용 가능한 Codex 하네스를 만드는 것입니다.
@@ -74,6 +74,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `.codex-loop/prd/`
 - `.codex-loop/tasks.json`
 - `.codex-loop/context/`
+- `.codex-loop/evals/`
 - `.codex-loop/assets/registry.json`
 - `.codex-loop/preflight/`
 - `scripts/codex_ralph.py`
@@ -93,13 +94,15 @@ python3 scripts/context_engine.py refresh --source bootstrap
 5. preflight를 돌려 환경 문제를 먼저 봅니다.
 6. context engine이 현재 상태를 `handoff.md`로 압축합니다.
 7. 첫 `./ralph.sh` 또는 `/ralph-loop` 실행에서 Ralph가 goal 기반 task graph를 자동 생성한 뒤 바로 첫 실행을 시작합니다.
+8. 이후 각 iteration마다 goal evaluator가 실제 목표 달성 여부를 다시 심판하고, 필요하면 task graph를 자동 보정합니다.
 
-사용자 입장에서 중요한 건 네 파일입니다.
+사용자 입장에서 중요한 건 다섯 파일입니다.
 
 - `.codex-loop/prd/PRD.md`: 무엇을 만들지
 - `.codex-loop/preflight/REPORT.md`: 지금 돌릴 수 있는 환경인지
 - `.codex-loop/context/handoff.md`: 지금 뭘 해야 하는지
 - `.codex-loop/tasks.json`: Ralph가 현재 goal을 어떻게 작업 그래프로 해석했는지
+- `.codex-loop/evals/`: 목표 달성 여부와 plan drift를 어떻게 판정했는지
 
 즉 사용자는 긴 로그를 다 읽지 않아도 되고, 하네스가 압축해둔 현재 packet만 보면 다음 행동을 이해할 수 있습니다.
 
@@ -130,6 +133,8 @@ slash command가 보이면 아래처럼 더 짧게도 갑니다.
 
 ```text
 /init-codex-ralph
+/summit-brainstorm
+/summit-write-plan
 /summit-preflight
 /summit-context-refresh
 /run-codex-ralph
@@ -144,9 +149,10 @@ slash command가 보이면 아래처럼 더 짧게도 갑니다.
 3. preflight가 툴체인, hooks, config, media 관련 준비 상태를 검사합니다.
 4. context engine이 PRD, task, 최근 로그, 승인 자산을 읽고 `handoff.md`를 만듭니다.
 5. loop runner가 이 handoff packet을 포함한 prompt로 worker를 실행합니다.
-6. checks와 review gate가 실행되고 결과가 로그로 남습니다.
-7. 다음 iteration 전에는 다시 context engine이 repo 상태를 압축합니다.
-8. same-session hook loop라면 Stop hook이 `ralph-loop.json` 상태를 보고 continuation prompt를 다시 넣습니다.
+6. checks, review gate, goal evaluator가 실행되고 결과가 로그로 남습니다.
+7. goal evaluator가 task graph drift를 감지하면 replanning pass가 plan을 보정합니다.
+8. 다음 iteration 전에는 다시 context engine이 repo 상태를 압축합니다.
+9. same-session hook loop라면 Stop hook이 `ralph-loop.json` 상태를 보고 continuation prompt를 다시 넣습니다.
 
 핵심은 raw transcript를 매번 다 넣지 않고, **repo state -> compressed handoff -> next iteration** 구조로 계속 이어진다는 점입니다.
 
@@ -157,6 +163,7 @@ loop가 도는 동안 사용자는 주로 아래를 봅니다.
 - `.codex-loop/context/handoff.md`: 다음 best step
 - `.codex-loop/logs/LOG.md`: iteration별 요약
 - `.codex-loop/reviews/`: read-only review 결과
+- `.codex-loop/evals/`: goal evaluator 결과
 - `.codex-loop/history/`: worker 실행 로그
 - `.codex-loop/assets/registry.json`: 어떤 시각 자산이 승인됐는지
 

@@ -39,6 +39,7 @@ class SummitHarnessTests(unittest.TestCase):
             self.assertTrue(marker.exists())
             self.assertTrue((root / "scripts" / "context_engine.py").exists())
             self.assertTrue((root / ".codex-loop" / "context" / "durable.json").exists())
+            self.assertTrue((root / ".codex-loop" / "evals" / ".gitkeep").exists())
 
     def test_context_and_asset_smoke(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -146,6 +147,26 @@ class SummitHarnessTests(unittest.TestCase):
             with mock.patch.object(mod.os.path, "exists", side_effect=fake_exists):
                 with mock.patch.object(mod.shutil, "which", return_value=None):
                     self.assertEqual(mod.resolve_check_shell(), ["/bin/bash", "-lc"])
+
+    def test_parse_evaluator_result_understands_pass_and_fail(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_eval_test")
+        passed = mod.parse_evaluator_result("""RESULT: PASS
+STATUS: COMPLETE
+SUMMARY: Goal is satisfied.
+NEXT: Ship it.
+""")
+        self.assertTrue(passed["passed"])
+        self.assertEqual(passed["status"], "COMPLETE")
+        self.assertEqual(passed["summary"], "Goal is satisfied.")
+
+        failed = mod.parse_evaluator_result("""RESULT: FAIL
+STATUS: INCOMPLETE
+SUMMARY: Missing tests.
+NEXT: Add tests.
+""")
+        self.assertFalse(failed["passed"])
+        self.assertEqual(failed["status"], "INCOMPLETE")
+        self.assertEqual(failed["next"], "Add tests.")
 
     def test_select_task_accepts_completed_status_as_done(self) -> None:
         mod = load_module(CODEX_RALPH, "codex_ralph_completed_test")
