@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import shlex
 import subprocess
 import sys
@@ -122,6 +123,41 @@ def in_git_repo(project_root: Path) -> bool:
         text=True,
     )
     return result.returncode == 0 and result.stdout.strip() == "true"
+
+
+def resolve_check_shell() -> list[str]:
+    candidates: list[tuple[str, str]] = []
+    shell_env = os.environ.get("SHELL")
+    if shell_env:
+        flag = "-c" if Path(shell_env).name == "sh" else "-lc"
+        candidates.append((shell_env, flag))
+    candidates.extend(
+        [
+            ("/bin/zsh", "-lc"),
+            ("/bin/bash", "-lc"),
+            ("/usr/bin/bash", "-lc"),
+            ("/bin/sh", "-c"),
+            ("sh", "-c"),
+        ]
+    )
+
+    seen: set[str] = set()
+    for shell_path, flag in candidates:
+        if shell_path in seen:
+            continue
+        seen.add(shell_path)
+        resolved = shell_path
+        if os.path.isabs(shell_path):
+            if not os.path.exists(shell_path):
+                continue
+        else:
+            found = shutil.which(shell_path)
+            if not found:
+                continue
+            resolved = found
+        return [resolved, flag]
+
+    raise FileNotFoundError("No supported shell found for local checks.")
 
 
 def normalize_command(command_value: Any) -> list[str]:
@@ -448,9 +484,10 @@ def run_checks(
     results = []
     lines = []
     passed = True
+    shell_command = resolve_check_shell()
     for index, command in enumerate(commands, start=1):
         proc = subprocess.run(
-            ["/bin/zsh", "-lc", command],
+            [*shell_command, command],
             cwd=project_root,
             capture_output=True,
             text=True,

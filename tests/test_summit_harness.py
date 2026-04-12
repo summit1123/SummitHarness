@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -133,6 +134,17 @@ class SummitHarnessTests(unittest.TestCase):
             self.assertFalse(result["passed"])
             self.assertNotIn("second-check-ran", log_text)
             self.assertIn("Halted remaining checks", log_text)
+
+    def test_resolve_check_shell_falls_back_to_bash_when_zsh_is_missing(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_shell_test")
+
+        def fake_exists(path: str) -> bool:
+            return path == "/bin/bash"
+
+        with mock.patch.dict(mod.os.environ, {}, clear=True):
+            with mock.patch.object(mod.os.path, "exists", side_effect=fake_exists):
+                with mock.patch.object(mod.shutil, "which", return_value=None):
+                    self.assertEqual(mod.resolve_check_shell(), ["/bin/bash", "-lc"])
 
     def test_installer_creates_backup_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
