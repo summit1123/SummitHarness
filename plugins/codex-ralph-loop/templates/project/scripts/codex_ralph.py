@@ -33,6 +33,8 @@ REVIEW_RE = re.compile(r"RESULT:\s*(PASS|FAIL)", re.IGNORECASE)
 EVAL_RESULT_RE = re.compile(r"RESULT:\s*(PASS|FAIL)", re.IGNORECASE)
 EVAL_STATUS_RE = re.compile(r"STATUS:\s*(COMPLETE|INCOMPLETE|BLOCKED|DECIDE)", re.IGNORECASE)
 PRIORITY_ORDER = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
+OPEN_TASK_STATUSES = {"todo", "in_progress", "pending", "open"}
+NEXT_TASK_STATUSES = {"todo", "pending", "open"}
 DEFAULT_TEMPLATE_TASK_TITLES = {
     "Brainstorm and lock the build brief",
     "Write the first execution plan",
@@ -267,7 +269,7 @@ def select_task(tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]]) -
     if ready_in_progress:
         return sorted(ready_in_progress, key=task_sort_key)[0]
 
-    todo = [task for task in tasks if str(task.get("status", "")).lower() == "todo"]
+    todo = [task for task in tasks if str(task.get("status", "")).lower() in NEXT_TASK_STATUSES]
     ready_todo = [task for task in todo if task_is_ready(task, specs, done_ids)]
     if ready_todo:
         return sorted(ready_todo, key=task_sort_key)[0]
@@ -276,7 +278,7 @@ def select_task(tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]]) -
 
 def blocked_tasks(tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     done_ids = {str(task.get("id")) for task in tasks if task_is_done(task)}
-    pending = [task for task in tasks if str(task.get("status", "")).lower() in {"todo", "in_progress"}]
+    pending = [task for task in tasks if str(task.get("status", "")).lower() in OPEN_TASK_STATUSES]
     return [task for task in pending if not task_is_ready(task, specs, done_ids)]
 
 
@@ -298,6 +300,26 @@ def tasks_need_seed(tasks_index: dict[str, Any], tasks: list[dict[str, Any]]) ->
 
 def all_tasks_complete(tasks: list[dict[str, Any]]) -> bool:
     return bool(tasks) and all(task_is_done(task) for task in tasks)
+
+
+def current_active_task(tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    in_progress = [task for task in tasks if str(task.get("status", "")).lower() == "in_progress"]
+    if not in_progress:
+        return None
+
+    done_ids = {str(task.get("id")) for task in tasks if task_is_done(task)}
+    ready = [task for task in in_progress if task_is_ready(task, specs, done_ids)]
+    if ready:
+        return sorted(ready, key=task_sort_key)[0]
+    return sorted(in_progress, key=task_sort_key)[0]
+
+
+def load_current_task_snapshot(state_dir: Path) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any] | None, dict[str, Any] | None]:
+    tasks = load_tasks(state_dir)
+    specs = load_task_specs(state_dir, tasks)
+    active_task = current_active_task(tasks, specs)
+    active_task_body = specs.get(str(active_task.get("id"))) if active_task else None
+    return tasks, specs, active_task, active_task_body
 
 
 def active_steering(steering_text: str) -> str:
@@ -368,12 +390,24 @@ def should_auto_extend_tasks(tasks: list[dict[str, Any]], evaluation: dict[str, 
     )
 
 
+def is_promise_only_text(text: str) -> bool:
+    stripped = (text or "").strip()
+    if not stripped:
+        return False
+    return bool(re.fullmatch(r"(?:<promise>.*?</promise>\s*)+", stripped, re.DOTALL))
+
+
 def first_nonempty_line(text: str, limit: int = 160) -> str:
+    saw_promise = False
     for line in (text or "").splitlines():
         line = line.strip()
-        if line:
-            return line[:limit]
-    return ""
+        if not line:
+            continue
+        if is_promise_only_text(line):
+            saw_promise = True
+            continue
+        return line[:limit]
+    return "Completion promise emitted."[:limit] if saw_promise else ""
 
 
 def build_task_seed_prompt(
@@ -669,6 +703,7 @@ Your job right now is planning, not product implementation.
 Required outcomes:
 - Update `.codex-loop/tasks.json` and `.codex-loop/tasks/TASK-*.json` so the remaining work is represented truthfully.
 - Preserve or mark already completed work accurately instead of erasing it.
+- Use only `todo`, `in_progress`, or `done`/`completed` style statuses in `tasks.json`; do not invent labels like `pending`.
 - Add, reopen, reorder, or tighten tasks so there is one clearly runnable next task.
 - If the goal is actually complete and only task state drifted, fix the task state instead of inventing fake work.
 - {git_note}
@@ -1161,6 +1196,28 @@ def main() -> int:
             review_passed = False
             review_summary = "Skipped because local checks failed."
 
+        tasks, specs, active_task, active_task_body = load_current_task_snapshot(state_dir)
+        interim_state_payload = {
+            "updatedAt": now_iso(),
+            "iteration": iteration,
+            "maxIterations": max_iterations,
+            "promise": promise,
+            "task": active_task,
+            "checksPassed": checks["passed"],
+            "checksSummary": checks["summary"],
+            "reviewPassed": review_passed,
+            "reviewSummary": review_summary,
+            "evalPassed": False,
+            "evalStatus": "INCOMPLETE",
+            "evalSummary": "Pending goal evaluation for this iteration.",
+            "evalNext": "",
+            "allTasksComplete": all_tasks_complete(tasks),
+            "gitAvailable": git_available,
+            "replanSummary": "",
+        }
+        write_json(state_dir / "state.json", interim_state_payload)
+        maybe_refresh_context(project_root, state_dir, config, f"iteration-{iteration}-pre-eval")
+
         evaluation = {
             "passed": True,
             "status": "COMPLETE",
@@ -1173,13 +1230,13 @@ def main() -> int:
                 state_dir=state_dir,
                 project_root=project_root,
                 label=f"iteration-{iteration:03d}-eval",
-                task=task,
-                task_body=task_body,
+                task=active_task,
+                task_body=active_task_body,
                 checks_summary=checks["summary"],
                 review_summary=review_summary,
             )
 
-        tasks = load_tasks(state_dir)
+        tasks, specs, active_task, active_task_body = load_current_task_snapshot(state_dir)
         replan_summary = ""
         replan_signal = ""
         if should_auto_extend_tasks(tasks, evaluation, config):
@@ -1194,7 +1251,7 @@ def main() -> int:
             )
             replan_signal = parse_promise(replan_result["last_message"])
             maybe_refresh_context(project_root, state_dir, config, f"iteration-{iteration}-replan")
-            tasks = load_tasks(state_dir)
+            tasks, specs, active_task, active_task_body = load_current_task_snapshot(state_dir)
             replan_summary = first_nonempty_line(replan_result["last_message"]) or "Task graph refreshed after evaluator failure."
             if all_tasks_complete(tasks) and not replan_signal.startswith(("BLOCKED:", "DECIDE:")):
                 print("Goal evaluator found remaining work, but task replan did not open any actionable tasks.", file=sys.stderr)
@@ -1210,7 +1267,7 @@ def main() -> int:
             "iteration": iteration,
             "maxIterations": max_iterations,
             "promise": promise,
-            "task": task,
+            "task": active_task,
             "checksPassed": checks["passed"],
             "checksSummary": checks["summary"],
             "reviewPassed": review_passed,

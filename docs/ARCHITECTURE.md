@@ -78,7 +78,7 @@ repo 상태에서 다음 iteration용 packet을 만든다.
 
 ### 4. Implementation Loop
 
-`./ralph.sh`
+`./ralph.sh` / `./ralph.sh --once`
 
 외부 worker loop는 다음을 사용한다.
 
@@ -87,6 +87,8 @@ repo 상태에서 다음 iteration용 packet을 만든다.
 - compressed handoff
 - deterministic checks
 - read-only review gate
+
+현재 이 repo는 첫 runnable loop slice를 검증하는 중이므로, task graph와 handoff가 실제 state와 일치하는지 확인하는 것이 우선이다.
 
 ### 5. Stop-hook Loop
 

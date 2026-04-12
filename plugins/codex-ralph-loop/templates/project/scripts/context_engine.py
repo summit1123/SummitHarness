@@ -20,6 +20,7 @@ DEFAULT_DURABLE = {
 DEFAULT_OPEN_QUESTIONS = {"questions": [], "updatedAt": None}
 DEFAULT_ASSET_REGISTRY = {"assets": [], "updatedAt": None}
 DONE_STATUSES = {"done", "completed", "complete", "skipped"}
+NEXT_TASK_STATUSES = {"todo", "pending", "open"}
 DEFAULT_TEMPLATE_TASK_TITLES = {
     "Brainstorm and lock the build brief",
     "Write the first execution plan",
@@ -182,25 +183,42 @@ def recent_log_blocks(log_path: Path, limit: int = 3) -> list[str]:
     return blocks[-limit:]
 
 
+def is_promise_only_text(text: str) -> bool:
+    stripped = (text or "").strip()
+    if not stripped:
+        return False
+    return bool(__import__("re").fullmatch(r"(?:<promise>.*?</promise>\s*)+", stripped, __import__("re").DOTALL))
+
+
 def first_bullet(lines: list[str]) -> str:
+    saw_promise = False
     for line in lines:
         stripped = line.strip()
-        if stripped:
-            return stripped
-    return "No summary available."
+        if not stripped:
+            continue
+        if is_promise_only_text(stripped.lstrip("- ").strip()):
+            saw_promise = True
+            continue
+        return stripped
+    return "Completion promise emitted." if saw_promise else "No summary available."
 
 
 def summarize_iteration_block(lines: list[str]) -> str:
     for line in lines:
         stripped = line.strip()
         if stripped.lower().startswith("- summary:"):
-            return stripped.split(":", 1)[1].strip() or "No summary available."
+            summary = stripped.split(":", 1)[1].strip()
+            if summary and not is_promise_only_text(summary):
+                return summary
+            if summary:
+                return "Completion promise emitted."
 
     skip_prefixes = ("- task:", "- promise:", "- checks:", "- review:", "- goal eval:")
     for line in lines:
         stripped = line.strip()
-        if stripped and not stripped.lower().startswith(skip_prefixes):
-            return stripped.lstrip("- ").strip()
+        candidate = stripped.lstrip("- ").strip()
+        if stripped and not stripped.lower().startswith(skip_prefixes) and not is_promise_only_text(candidate):
+            return candidate
 
     return first_bullet(lines)
 
@@ -272,7 +290,7 @@ def next_best_step(tasks_index: dict[str, Any], tasks: list[dict[str, Any]], spe
         if str(task.get("status", "")).lower() == "in_progress":
             return f"Continue task {task.get('id')} and keep task state accurate."
     for task in sorted(tasks, key=task_sort_key):
-        if str(task.get("status", "")).lower() == "todo":
+        if str(task.get("status", "")).lower() in NEXT_TASK_STATUSES:
             deps = specs.get(str(task.get("id")), {}).get("dependsOn", [])
             if deps:
                 return f"Check whether task {task.get('id')} is now unblocked by {', '.join(str(dep) for dep in deps)}."

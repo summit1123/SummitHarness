@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -32,7 +33,7 @@ def load_module(path: Path, name: str):
 class SummitHarnessTests(unittest.TestCase):
     def test_bootstrap_preserves_existing_codex_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
+            root = Path(tmp).resolve()
             (root / ".codex").mkdir(parents=True, exist_ok=True)
             marker = root / ".codex" / "existing.txt"
             marker.write_text("keep", encoding="utf-8")
@@ -168,6 +169,17 @@ NEXT: Add tests.
         self.assertFalse(failed["passed"])
         self.assertEqual(failed["status"], "INCOMPLETE")
         self.assertEqual(failed["next"], "Add tests.")
+
+    def test_select_task_accepts_pending_status_as_next_work(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_pending_test")
+        tasks = [
+            {"id": "001", "status": "done", "priority": "p0", "title": "Locked"},
+            {"id": "002", "status": "pending", "priority": "p0", "title": "Smoke"},
+        ]
+        specs = {"001": {"dependsOn": []}, "002": {"dependsOn": ["001"]}}
+        selected = mod.select_task(tasks, specs)
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected["id"], "002")
 
     def test_select_task_accepts_completed_status_as_done(self) -> None:
         mod = load_module(CODEX_RALPH, "codex_ralph_completed_test")
@@ -407,6 +419,184 @@ if __name__ == "__main__":
             self.assertIn("Goal Eval", log_text)
             self.assertIn("Goal satisfied with a truthful final artifact.", log_text)
 
+    def test_goal_evaluator_sees_refreshed_active_task_after_worker_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+
+            state_dir = root / ".codex-loop"
+            (state_dir / "tasks.json").write_text(
+                json.dumps(
+                    {
+                        "project": "State Sync Project",
+                        "source": "manual",
+                        "tasks": [
+                            {
+                                "id": "001",
+                                "title": "Stabilize the loop",
+                                "status": "in_progress",
+                                "priority": "p0",
+                                "file": "tasks/TASK-001.json",
+                            },
+                            {
+                                "id": "002",
+                                "title": "Advance verification",
+                                "status": "todo",
+                                "priority": "p1",
+                                "file": "tasks/TASK-002.json",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (state_dir / "tasks" / "TASK-001.json").write_text(
+                json.dumps(
+                    {
+                        "id": "001",
+                        "title": "Stabilize the loop",
+                        "status": "in_progress",
+                        "priority": "p0",
+                        "dependsOn": [],
+                        "deliverables": ["notes.md"],
+                        "acceptance": ["Move the loop to task 002 truthfully."],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (state_dir / "tasks" / "TASK-002.json").write_text(
+                json.dumps(
+                    {
+                        "id": "002",
+                        "title": "Advance verification",
+                        "status": "todo",
+                        "priority": "p1",
+                        "dependsOn": ["001"],
+                        "deliverables": ["notes.md"],
+                        "acceptance": ["Evaluator should see task 002 as active once task 001 moves forward."],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stub = root / "sync_stub.py"
+            stub.write_text(
+                "\n".join(
+                    [
+                        '#!/usr/bin/env python3',
+                        'from __future__ import annotations',
+                        '',
+                        'import argparse',
+                        'import json',
+                        'import sys',
+                        'from pathlib import Path',
+                        '',
+                        '',
+                        'def load_json(path: Path, default):',
+                        '    if not path.exists():',
+                        '        return default',
+                        '    return json.loads(path.read_text(encoding="utf-8"))',
+                        '',
+                        '',
+                        'def write_json(path: Path, payload) -> None:',
+                        '    path.parent.mkdir(parents=True, exist_ok=True)',
+                        '    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")',
+                        '',
+                        '',
+                        'def write_last(path: Path, text: str) -> None:',
+                        '    path.parent.mkdir(parents=True, exist_ok=True)',
+                        '    path.write_text(text.strip() + "\\n", encoding="utf-8")',
+                        '',
+                        '',
+                        'def mark_task(root: Path, task_id: str, status: str) -> None:',
+                        '    tasks_path = root / ".codex-loop" / "tasks.json"',
+                        '    index = load_json(tasks_path, {})',
+                        '    for task in index.get("tasks", []):',
+                        '        if str(task.get("id")) == task_id:',
+                        '            task["status"] = status',
+                        '    write_json(tasks_path, index)',
+                        '',
+                        '    task_path = root / ".codex-loop" / "tasks" / f"TASK-{task_id}.json"',
+                        '    task_payload = load_json(task_path, {"id": task_id})',
+                        '    task_payload["status"] = status',
+                        '    write_json(task_path, task_payload)',
+                        '',
+                        '',
+                        'def main() -> int:',
+                        '    parser = argparse.ArgumentParser()',
+                        '    parser.add_argument("--mode", required=True, choices=["worker", "review", "evaluator"])',
+                        '    parser.add_argument("output_last_message")',
+                        '    args = parser.parse_args()',
+                        '',
+                        '    prompt = sys.stdin.read()',
+                        '    root = Path.cwd()',
+                        '',
+                        '    if args.mode == "review":',
+                        '        write_last(Path(args.output_last_message), "RESULT: PASS\\nSUMMARY: Stub review passed.\\nFINDINGS:\\n- none")',
+                        '        return 0',
+                        '',
+                        '    if args.mode == "evaluator":',
+                        '        active_index_ok = "Active task index entry:\\n```json\\n{\\n  \\"id\\": \\"002\\"" in prompt',
+                        '        handoff_ok = "- Active task: 002 Advance verification" in prompt',
+                        '        summary = (',
+                        '            "Active task stayed in sync after worker progress."',
+                        '            if active_index_ok and handoff_ok',
+                        '            else "Evaluator saw stale active-task metadata."',
+                        '        )',
+                        '        write_last(',
+                        '            Path(args.output_last_message),',
+                        '            f"RESULT: FAIL\\nSTATUS: INCOMPLETE\\nSUMMARY: {summary}\\nNEXT: Continue the current task graph.\\nMISSING:\\n- none",',
+                        '        )',
+                        '        return 0',
+                        '',
+                        '    mark_task(root, "001", "completed")',
+                        '    mark_task(root, "002", "in_progress")',
+                        '    write_last(Path(args.output_last_message), "Moved the loop forward to task 002.")',
+                        '    return 0',
+                        '',
+                        '',
+                        'if __name__ == "__main__":',
+                        '    raise SystemExit(main())',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            config_path = state_dir / "config.json"
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            config["agent"]["command"] = [sys.executable, str(stub), "--mode", "worker", "{output_last_message}"]
+            config["agent"]["review_command"] = [sys.executable, str(stub), "--mode", "review", "{output_last_message}"]
+            config["evaluator"]["command"] = [sys.executable, str(stub), "--mode", "evaluator", "{output_last_message}"]
+            config["checks"]["commands"] = []
+            config["review"]["enabled"] = False
+            config["loop"]["auto_seed_tasks"] = False
+            config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, str(root / "scripts" / "codex_ralph.py"), "-n", "1"],
+                cwd=root,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 1, msg=result.stdout + result.stderr)
+            state = json.loads((state_dir / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(state["evalSummary"], "Active task stayed in sync after worker progress.")
+            self.assertEqual(state["task"]["id"], "002")
+            handoff = (state_dir / "context" / "handoff.md").read_text(encoding="utf-8")
+            self.assertIn("- Active task: 002 Advance verification", handoff)
+
     def test_installer_creates_backup_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
@@ -455,7 +645,6 @@ if __name__ == "__main__":
             self.assertIn("codex-ralph-loop", plugin_dir.name)
             self.assertIn("codex_hooks = true", codex_config.read_text(encoding="utf-8"))
 
-
     def test_plugin_bundle_includes_documented_global_commands(self) -> None:
         expected = {
             "init-codex-ralph.md",
@@ -477,6 +666,20 @@ if __name__ == "__main__":
             log_path.write_text("# Loop Log\n\nRun history will accumulate here.\n", encoding="utf-8")
             self.assertEqual(mod.recent_log_blocks(log_path), [])
 
+    def test_first_nonempty_line_skips_promise_only_output(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_first_line_test")
+        text = "<promise>COMPLETE</promise>\n\nReal progress after the promise.\n"
+        self.assertEqual(mod.first_nonempty_line(text), "Real progress after the promise.")
+        self.assertEqual(mod.first_nonempty_line("<promise>COMPLETE</promise>\n"), "Completion promise emitted.")
+
+    def test_context_engine_next_best_step_accepts_pending_tasks(self) -> None:
+        mod = load_module(CONTEXT_ENGINE, "context_engine_pending_next_step_test")
+        tasks_index = {"source": "project-specific-bootstrap"}
+        tasks = [{"id": "005", "title": "Run explicit local self-smoke and reconcile handoff", "status": "pending", "priority": "p1"}]
+        specs = {"005": {"dependsOn": ["004"]}}
+        next_step = mod.next_best_step(tasks_index, tasks, specs, blockers=[])
+        self.assertEqual(next_step, "Check whether task 005 is now unblocked by 004.")
+
     def test_context_engine_recent_progress_prefers_summary_line(self) -> None:
         mod = load_module(CONTEXT_ENGINE, "context_engine_recent_summary_test")
         with tempfile.TemporaryDirectory() as tmp:
@@ -496,6 +699,27 @@ if __name__ == "__main__":
             self.assertEqual(
                 mod.summarize_recent_progress(state_dir),
                 ["- Iteration 0 - 2026-04-13T01:45:37+09:00: Task graph bootstrap completed."],
+            )
+
+    def test_context_engine_recent_progress_sanitizes_promise_only_summary(self) -> None:
+        mod = load_module(CONTEXT_ENGINE, "context_engine_promise_summary_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            state_dir = Path(tmp)
+            (state_dir / "logs").mkdir(parents=True, exist_ok=True)
+            (state_dir / "logs" / "LOG.md").write_text(
+                "# Loop Log\n\n"
+                "## Iteration 1 - 2026-04-13T02:23:36+09:00\n"
+                "- Task: 004 Tighten operator docs and local verification\n"
+                "- Promise: COMPLETE\n"
+                "- Checks: All local checks passed.\n"
+                "- Review: Skipped.\n"
+                "- Goal Eval: Not run.\n"
+                "- Summary: <promise>COMPLETE</promise>\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                mod.summarize_recent_progress(state_dir),
+                ["- Iteration 1 - 2026-04-13T02:23:36+09:00: Completion promise emitted."],
             )
 
     def test_context_engine_strips_summary_heading_when_embedding(self) -> None:

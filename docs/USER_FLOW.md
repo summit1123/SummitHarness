@@ -4,6 +4,8 @@
 
 사용자는 짧은 명령만 실행하고, 하네스는 내부에서 환경 점검, 컨텍스트 압축, loop 실행, 평가, handoff 갱신을 반복합니다.
 
+현재 이 저장소는 첫 runnable loop slice를 검증하는 단계이므로, `current-state.md`와 `handoff.md`가 같은 상태를 말하는지 함께 확인해야 합니다.
+
 ## 1. 설치
 
 사용자:
@@ -85,6 +87,8 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `current-state.md`와 `handoff.md` 생성
 - `events.jsonl`에 refresh 기록
 
+운영자는 여기서 `current-state.md`를 먼저 보고, 그 다음 `handoff.md`가 그 상태를 정확히 요약하는지 확인합니다.
+
 사용자 체감:
 
 - 긴 로그를 다 읽지 않고도 `handoff.md`만 보면 다음 행동을 이해할 수 있음
@@ -128,6 +132,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 - `.codex-loop/preflight/REPORT.md`: 환경 상태
 - `.codex-loop/context/handoff.md`: 다음 best step
+- `.codex-loop/context/current-state.md`: handoff 근거가 되는 최신 상태
 - `.codex-loop/tasks.json`: 현재 작업 그래프
 - `.codex-loop/logs/LOG.md`: iteration 요약
 - `.codex-loop/reviews/`: 리뷰 게이트 결과

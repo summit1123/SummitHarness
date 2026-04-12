@@ -68,6 +68,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 처음 bootstrap 직후의 `.codex-loop/tasks.json`은 샘플 그래프입니다.
 실제 goal은 `.codex-loop/prd/PRD.md`, `.codex-loop/prd/SUMMARY.md`, `.codex-loop/config.json`에 적고, 첫 `./ralph.sh --once` 실행에서 Ralph가 이 템플릿 task를 프로젝트 전용 task graph로 자동 교체합니다.
+이후에는 task graph, checks, handoff가 함께 갱신됩니다.
 
 이제 프로젝트에는 아래가 생깁니다.
 
@@ -103,6 +104,8 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `.codex-loop/context/handoff.md`: 지금 뭘 해야 하는지
 - `.codex-loop/tasks.json`: Ralph가 현재 goal을 어떻게 작업 그래프로 해석했는지
 - `.codex-loop/evals/`: 목표 달성 여부와 plan drift를 어떻게 판정했는지
+
+이 저장소의 현재 상태는 첫 runnable loop slice를 아직 검증 중이므로, operator는 task 상태와 handoff를 같이 봐야 합니다.
 
 즉 사용자는 긴 로그를 다 읽지 않아도 되고, 하네스가 압축해둔 현재 packet만 보면 다음 행동을 이해할 수 있습니다.
 
