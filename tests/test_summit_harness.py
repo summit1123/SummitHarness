@@ -477,6 +477,67 @@ if __name__ == "__main__":
             log_path.write_text("# Loop Log\n\nRun history will accumulate here.\n", encoding="utf-8")
             self.assertEqual(mod.recent_log_blocks(log_path), [])
 
+    def test_context_engine_recent_progress_prefers_summary_line(self) -> None:
+        mod = load_module(CONTEXT_ENGINE, "context_engine_recent_summary_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            state_dir = Path(tmp)
+            (state_dir / "logs").mkdir(parents=True, exist_ok=True)
+            (state_dir / "logs" / "LOG.md").write_text(
+                "# Loop Log\n\n"
+                "## Iteration 0 - 2026-04-13T01:45:37+09:00\n"
+                "- Task: none\n"
+                "- Promise: seeded\n"
+                "- Checks: Not run.\n"
+                "- Review: Not run.\n"
+                "- Goal Eval: Not run.\n"
+                "- Summary: Task graph bootstrap completed.\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                mod.summarize_recent_progress(state_dir),
+                ["- Iteration 0 - 2026-04-13T01:45:37+09:00: Task graph bootstrap completed."],
+            )
+
+    def test_context_engine_strips_summary_heading_when_embedding(self) -> None:
+        mod = load_module(CONTEXT_ENGINE, "context_engine_summary_heading_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state_dir = root / ".codex-loop"
+            (state_dir / "prd").mkdir(parents=True, exist_ok=True)
+            (state_dir / "prd" / "SUMMARY.md").write_text(
+                "# Project Summary\n\nThis is the embedded summary body.\n",
+                encoding="utf-8",
+            )
+            (state_dir / "PROMPT.md").write_text("Stable prompt body.", encoding="utf-8")
+
+            current_state, _, _ = mod.build_context_markdown(root, state_dir)
+
+            self.assertIn("## Project Summary\nThis is the embedded summary body.", current_state)
+            self.assertNotIn("## Project Summary\n# Project Summary", current_state)
+
+    def test_seed_prompt_calls_out_bootstrap_scaffold_files(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_seed_prompt_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            state_dir = Path(tmp)
+            (state_dir / "prd").mkdir(parents=True, exist_ok=True)
+            (state_dir / "PROMPT.md").write_text("Base prompt", encoding="utf-8")
+            (state_dir / "prd" / "PRD.md").write_text("PRD body", encoding="utf-8")
+            (state_dir / "prd" / "SUMMARY.md").write_text("Summary body", encoding="utf-8")
+            (state_dir / "context").mkdir(parents=True, exist_ok=True)
+            (state_dir / "context" / "handoff.md").write_text("handoff", encoding="utf-8")
+
+            prompt = mod.build_task_seed_prompt(
+                config={"loop": {"mode": "planning", "completion_promise": "COMPLETE"}},
+                state_dir=state_dir,
+                steering_text="",
+                git_available=True,
+            )
+
+            self.assertIn(".gitignore", prompt)
+            self.assertIn(".codex-loop/", prompt)
+            self.assertIn("expected setup, not unrelated drift", prompt)
+            self.assertIn("Prefer high-signal files like the PRD, summary, README, docs, and tests", prompt)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

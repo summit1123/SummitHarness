@@ -37,6 +37,19 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
+def strip_leading_heading(text: str) -> str:
+    stripped = (text or "").strip()
+    if not stripped:
+        return ""
+
+    lines = stripped.splitlines()
+    if lines and lines[0].lstrip().startswith("#"):
+        lines = lines[1:]
+        while lines and not lines[0].strip():
+            lines = lines[1:]
+    return "\n".join(lines).strip()
+
+
 def load_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
     if not path.exists():
         return default.copy()
@@ -161,7 +174,7 @@ def recent_log_blocks(log_path: Path, limit: int = 3) -> list[str]:
     if not text or "## Iteration " not in text:
         return []
     blocks = []
-    for chunk in text.split("## Iteration "):
+    for chunk in text.split("## Iteration ")[1:]:
         chunk = chunk.strip()
         if not chunk:
             continue
@@ -177,13 +190,28 @@ def first_bullet(lines: list[str]) -> str:
     return "No summary available."
 
 
+def summarize_iteration_block(lines: list[str]) -> str:
+    for line in lines:
+        stripped = line.strip()
+        if stripped.lower().startswith("- summary:"):
+            return stripped.split(":", 1)[1].strip() or "No summary available."
+
+    skip_prefixes = ("- task:", "- promise:", "- checks:", "- review:", "- goal eval:")
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.lower().startswith(skip_prefixes):
+            return stripped.lstrip("- ").strip()
+
+    return first_bullet(lines)
+
+
 def summarize_recent_progress(state_dir: Path) -> list[str]:
     blocks = recent_log_blocks(state_dir / "logs" / "LOG.md")
     result: list[str] = []
     for block in blocks:
         lines = [line.strip() for line in block.splitlines() if line.strip()]
         header = lines[0].replace("## ", "") if lines else "Iteration"
-        summary = first_bullet(lines[1:])
+        summary = summarize_iteration_block(lines[1:])
         result.append(f"- {header}: {summary}")
     return result
 
@@ -254,7 +282,7 @@ def next_best_step(tasks_index: dict[str, Any], tasks: list[dict[str, Any]], spe
 
 def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, str, dict[str, Any]]:
     ensure_context_layout(project_root, state_dir)
-    summary = read_text(state_dir / "prd" / "SUMMARY.md") or "No project summary yet."
+    summary = strip_leading_heading(read_text(state_dir / "prd" / "SUMMARY.md")) or "No project summary yet."
     prompt = read_text(state_dir / "PROMPT.md")
     tasks_index = load_tasks_index(state_dir)
     tasks = load_tasks(state_dir)

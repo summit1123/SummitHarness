@@ -393,6 +393,9 @@ def build_task_seed_prompt(
         if git_available
         else "Git is not available. Work directly in the workspace and keep the generated task files synchronized."
     )
+    scaffold_note = (
+        "Bootstrap scaffolding such as `.gitignore`, `ralph.sh`, `.codex/`, `scripts/`, and `.codex-loop/` may already be present. Treat those generated runtime files as expected setup, not unrelated drift."
+    )
 
     return f'''You are initializing the SummitHarness task graph for the first real loop run.
 
@@ -420,7 +423,10 @@ Planning rules:
 - Record assumptions instead of hiding them.
 - Do not keep the default sample tasks unless they genuinely match the project.
 - Do not implement the product itself in this bootstrap step unless a tiny edit is required to clarify planning state.
+- Prefer high-signal files like the PRD, summary, README, docs, and tests before crawling unrelated parts of the repo.
+- Stop exploring once you have enough evidence to write a trustworthy first task graph.
 - {git_note}
+- {scaffold_note}
 
 Compressed context packet:
 {handoff_md}
