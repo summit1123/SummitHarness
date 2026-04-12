@@ -14,6 +14,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from context_engine import ensure_context_layout, refresh_context
+
 
 COMPLETE_EXIT = 0
 MAX_ITER_EXIT = 1
@@ -23,6 +29,7 @@ ERROR_EXIT = 4
 
 PROMISE_RE = re.compile(r"<promise>(.*?)</promise>", re.DOTALL)
 REVIEW_RE = re.compile(r"RESULT:\s*(PASS|FAIL)", re.IGNORECASE)
+PRIORITY_ORDER = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "version": 1,
@@ -65,9 +72,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "enabled": True,
         "max_findings": 5,
     },
+    "context": {
+        "enabled": True,
+        "refresh_each_iteration": True,
+    },
 }
-
-PRIORITY_ORDER = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
 
 
 def now_iso() -> str:
@@ -130,9 +139,7 @@ def render_command(command_value: Any, context: dict[str, str]) -> list[str]:
 
 def load_config(project_root: Path, state_dir: Path, args: argparse.Namespace) -> dict[str, Any]:
     config_path = state_dir / "config.json"
-    user_config = {}
-    if config_path.exists():
-        user_config = load_json(config_path)
+    user_config = load_json(config_path) if config_path.exists() else {}
     config = deep_merge(DEFAULT_CONFIG, user_config)
 
     if args.mode:
@@ -163,30 +170,61 @@ def load_tasks(state_dir: Path) -> list[dict[str, Any]]:
 
 def task_file_path(state_dir: Path, task: dict[str, Any]) -> Path:
     rel = task.get("file")
-    if not rel:
-        return state_dir / "tasks" / f"TASK-{task.get('id', 'UNKNOWN')}.json"
-    return state_dir / rel
+    if rel:
+        return state_dir / rel
+    return state_dir / "tasks" / f"TASK-{task.get('id', 'UNKNOWN')}.json"
+
+
+def load_task_specs(state_dir: Path, tasks: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    specs: dict[str, dict[str, Any]] = {}
+    for task in tasks:
+        path = task_file_path(state_dir, task)
+        if path.exists():
+            specs[str(task.get("id"))] = load_json(path)
+        else:
+            specs[str(task.get("id"))] = {}
+    return specs
 
 
 def task_sort_key(task: dict[str, Any]) -> tuple[int, str]:
     priority = PRIORITY_ORDER.get(str(task.get("priority", "p2")).lower(), 9)
-    task_id = str(task.get("id", "ZZZ"))
-    return priority, task_id
+    return priority, str(task.get("id", "ZZZ"))
 
 
 def task_is_done(task: dict[str, Any]) -> bool:
     return str(task.get("status", "")).lower() in {"done", "skipped"}
 
 
-def select_task(tasks: list[dict[str, Any]]) -> dict[str, Any] | None:
+def task_dependencies(task: dict[str, Any], specs: dict[str, dict[str, Any]]) -> list[str]:
+    spec = specs.get(str(task.get("id")), {})
+    deps = spec.get("dependsOn", task.get("dependsOn", []))
+    if not isinstance(deps, list):
+        return []
+    return [str(dep) for dep in deps]
+
+
+def task_is_ready(task: dict[str, Any], specs: dict[str, dict[str, Any]], done_ids: set[str]) -> bool:
+    return all(dep in done_ids for dep in task_dependencies(task, specs))
+
+
+def select_task(tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    done_ids = {str(task.get("id")) for task in tasks if task_is_done(task)}
     in_progress = [task for task in tasks if str(task.get("status", "")).lower() == "in_progress"]
-    if in_progress:
-        return sorted(in_progress, key=task_sort_key)[0]
+    ready_in_progress = [task for task in in_progress if task_is_ready(task, specs, done_ids)]
+    if ready_in_progress:
+        return sorted(ready_in_progress, key=task_sort_key)[0]
 
     todo = [task for task in tasks if str(task.get("status", "")).lower() == "todo"]
-    if todo:
-        return sorted(todo, key=task_sort_key)[0]
+    ready_todo = [task for task in todo if task_is_ready(task, specs, done_ids)]
+    if ready_todo:
+        return sorted(ready_todo, key=task_sort_key)[0]
     return None
+
+
+def blocked_tasks(tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    done_ids = {str(task.get("id")) for task in tasks if task_is_done(task)}
+    pending = [task for task in tasks if str(task.get("status", "")).lower() in {"todo", "in_progress"}]
+    return [task for task in pending if not task_is_ready(task, specs, done_ids)]
 
 
 def all_tasks_complete(tasks: list[dict[str, Any]]) -> bool:
@@ -195,9 +233,7 @@ def all_tasks_complete(tasks: list[dict[str, Any]]) -> bool:
 
 def active_steering(steering_text: str) -> str:
     stripped = steering_text.strip()
-    if not stripped:
-        return ""
-    if "Add urgent notes" in stripped:
+    if not stripped or "Add urgent notes" in stripped:
         return ""
     return stripped
 
@@ -237,6 +273,7 @@ def build_worker_prompt(
 ) -> str:
     prompt_md = read_text(state_dir / "PROMPT.md")
     summary_md = read_text(state_dir / "prd" / "SUMMARY.md")
+    handoff_md = read_text(state_dir / "context" / "handoff.md") or "No compressed handoff exists yet."
     task_index = json.dumps(task, ensure_ascii=False, indent=2) if task else "{}"
     task_spec = json.dumps(task_body or {}, ensure_ascii=False, indent=2)
     steering_block = steering_text or "No active steering notes."
@@ -246,7 +283,7 @@ def build_worker_prompt(
         else "Git is not available. Work directly in the workspace and keep task state files accurate."
     )
 
-    return f"""You are inside a long-running Codex Ralph loop.
+    return f"""You are inside a long-running SummitHarness Codex loop.
 
 Iteration: {iteration}
 Mode: {config['loop']['mode']}
@@ -257,10 +294,14 @@ Promise contract:
 - Do not lie with promise tags to exit the loop.
 
 Loop expectations:
-- Work from the project brief and the active task below.
+- Work from the project brief, compressed context packet, and active task below.
 - Update .codex-loop/tasks.json and the active task file when task state changes.
 - Prefer ending the turn with real progress in files, not just a plan.
 - {git_note}
+- Keep the visual direction intentional. If the design is still generic, improve the design inputs before polishing implementation details.
+
+Compressed context packet:
+{handoff_md}
 
 Base prompt:
 {prompt_md}
@@ -292,10 +333,11 @@ def build_review_prompt(
     checks_summary: str,
 ) -> str:
     summary_md = read_text(state_dir / "prd" / "SUMMARY.md")
+    handoff_md = read_text(state_dir / "context" / "handoff.md")
     task_index = json.dumps(task, ensure_ascii=False, indent=2) if task else "{}"
     task_spec = json.dumps(task_body or {}, ensure_ascii=False, indent=2)
 
-    return f"""You are the review gate for a Codex Ralph loop. Work read-only.
+    return f"""You are the review gate for a SummitHarness Codex loop. Work read-only.
 
 Review focus:
 - correctness bugs
@@ -306,6 +348,10 @@ Review focus:
 
 Ignore style-only nits.
 Keep the review short and severe-only.
+Limit yourself to at most {int(config['review'].get('max_findings', 5))} findings.
+
+Compressed context packet:
+{handoff_md or 'No compressed handoff exists yet.'}
 
 Project summary:
 {summary_md}
@@ -360,19 +406,20 @@ def run_codex(
         env=env,
     )
 
-    combined = []
-    combined.append(f"$ {' '.join(shlex.quote(part) for part in command)}")
-    combined.append("")
-    combined.append("## Prompt")
-    combined.append(prompt)
-    combined.append("")
-    combined.append("## Stdout")
-    combined.append(result.stdout)
-    combined.append("")
-    combined.append("## Stderr")
-    combined.append(result.stderr)
-    combined.append("")
-    combined.append(f"## Exit code\n{result.returncode}\n")
+    combined = [
+        f"$ {' '.join(shlex.quote(part) for part in command)}",
+        "",
+        "## Prompt",
+        prompt,
+        "",
+        "## Stdout",
+        result.stdout,
+        "",
+        "## Stderr",
+        result.stderr,
+        "",
+        f"## Exit code\n{result.returncode}\n",
+    ]
     write_text(log_path, "\n".join(combined))
 
     last_message = read_text(output_last_message)
@@ -388,7 +435,13 @@ def run_codex(
     }
 
 
-def run_checks(project_root: Path, state_dir: Path, iteration: int, commands: list[str]) -> dict[str, Any]:
+def run_checks(
+    project_root: Path,
+    state_dir: Path,
+    iteration: int,
+    commands: list[str],
+    stop_on_failure: bool,
+) -> dict[str, Any]:
     if not commands:
         return {"passed": True, "summary": "No local checks configured.", "results": []}
 
@@ -426,6 +479,9 @@ def run_checks(project_root: Path, state_dir: Path, iteration: int, commands: li
                 "",
             ]
         )
+        if stop_on_failure and proc.returncode != 0:
+            lines.append("### Halted remaining checks because stop_on_failure is enabled.\n")
+            break
 
     write_text(state_dir / "logs" / f"iteration-{iteration:03d}-checks.log", "\n".join(lines))
     summary = "All local checks passed." if passed else "One or more local checks failed."
@@ -460,12 +516,21 @@ def append_loop_log(
 
 
 def ensure_state_dirs(state_dir: Path) -> None:
-    for rel in ["history", "reviews", "artifacts", "logs", "prd", "tasks"]:
+    for rel in ["history", "reviews", "artifacts", "logs", "prd", "tasks", "assets", "preflight", "context"]:
         (state_dir / rel).mkdir(parents=True, exist_ok=True)
 
 
+def maybe_refresh_context(project_root: Path, state_dir: Path, config: dict[str, Any], source: str) -> None:
+    if not bool(config.get("context", {}).get("enabled", True)):
+        return
+    refresh_each_iteration = bool(config.get("context", {}).get("refresh_each_iteration", True))
+    if source.startswith("iteration-") and not refresh_each_iteration:
+        return
+    refresh_context(project_root, state_dir, source=source)
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run a Codex Ralph loop.")
+    parser = argparse.ArgumentParser(description="Run the SummitHarness Codex loop.")
     parser.add_argument("-n", "--max-iterations", type=int, help="Override max iterations")
     parser.add_argument("--once", action="store_true", help="Run exactly one iteration")
     parser.add_argument("--mode", help="Override loop mode")
@@ -479,31 +544,65 @@ def main() -> int:
     project_root = Path.cwd().resolve()
     state_dir = (project_root / args.state_dir).resolve()
     ensure_state_dirs(state_dir)
+    ensure_context_layout(project_root, state_dir)
     config = load_config(project_root, state_dir, args)
     git_available = in_git_repo(project_root)
 
     max_iterations = int(config["loop"]["max_iterations"])
     review_enabled = bool(config["review"].get("enabled", True)) and not args.skip_review
     check_commands = [] if args.skip_checks else list(config["checks"].get("commands", []))
+    stop_on_failure = bool(config["checks"].get("stop_on_failure", True))
 
     try:
         tasks = load_tasks(state_dir)
-    except Exception as exc:  # pragma: no cover - defensive setup error
+    except Exception as exc:
         print(f"failed to load tasks: {exc}", file=sys.stderr)
         return ERROR_EXIT
 
+    maybe_refresh_context(project_root, state_dir, config, "loop-start")
+
     if all_tasks_complete(tasks):
         print("All tasks are already complete.")
+        maybe_refresh_context(project_root, state_dir, config, "loop-complete")
         return COMPLETE_EXIT
 
     for iteration in range(1, max_iterations + 1):
         tasks = load_tasks(state_dir)
-        task = select_task(tasks)
-        task_body = None
-        if task:
-            task_path = task_file_path(state_dir, task)
-            if task_path.exists():
-                task_body = load_json(task_path)
+        specs = load_task_specs(state_dir, tasks)
+        task = select_task(tasks, specs)
+        task_body = specs.get(str(task.get("id"))) if task else None
+        maybe_refresh_context(project_root, state_dir, config, f"iteration-{iteration}-before")
+
+        if task is None and not all_tasks_complete(tasks):
+            blocked = blocked_tasks(tasks, specs)
+            summary = "No runnable task was found. Dependencies may be unresolved or cyclic."
+            append_loop_log(
+                state_dir,
+                iteration=iteration,
+                task=None,
+                promise="DECIDE:dependency-order",
+                checks_summary="Not run.",
+                review_summary="Not run.",
+                message=summary,
+            )
+            state_payload = {
+                "updatedAt": now_iso(),
+                "iteration": iteration,
+                "maxIterations": max_iterations,
+                "promise": "DECIDE:dependency-order",
+                "task": None,
+                "checksPassed": False,
+                "checksSummary": "Not run.",
+                "reviewPassed": False,
+                "reviewSummary": "Not run.",
+                "allTasksComplete": False,
+                "gitAvailable": git_available,
+                "blockedTasks": blocked,
+            }
+            write_json(state_dir / "state.json", state_payload)
+            maybe_refresh_context(project_root, state_dir, config, f"iteration-{iteration}-blocked")
+            print(summary)
+            return DECIDE_EXIT
 
         worker_last_message = state_dir / "history" / f"iteration-{iteration:03d}-worker-last.md"
         worker_log = state_dir / "history" / f"iteration-{iteration:03d}-worker.log"
@@ -527,7 +626,7 @@ def main() -> int:
         )
 
         promise = parse_promise(worker_result["last_message"])
-        checks = run_checks(project_root, state_dir, iteration, check_commands)
+        checks = run_checks(project_root, state_dir, iteration, check_commands, stop_on_failure)
 
         review_summary = "Skipped."
         review_passed = True
@@ -555,7 +654,6 @@ def main() -> int:
 
         tasks = load_tasks(state_dir)
         finished = all_tasks_complete(tasks) and checks["passed"] and review_passed
-
         state_payload = {
             "updatedAt": now_iso(),
             "iteration": iteration,
@@ -580,6 +678,7 @@ def main() -> int:
             review_summary=review_summary,
             message=first_nonempty_line(worker_result["last_message"]),
         )
+        maybe_refresh_context(project_root, state_dir, config, f"iteration-{iteration}-after")
 
         print(f"[iteration {iteration}] task={task.get('id') if task else 'none'}")
         print(f"[iteration {iteration}] checks={checks['summary']}")
@@ -591,14 +690,16 @@ def main() -> int:
             return BLOCKED_EXIT
         if promise.startswith("DECIDE:"):
             return DECIDE_EXIT
-
         if promise == config["loop"]["completion_promise"] and finished:
             print("Loop completed with a valid completion promise.")
+            maybe_refresh_context(project_root, state_dir, config, "loop-complete")
             return COMPLETE_EXIT
         if finished:
             print("Loop completed because all tasks, checks, and review gates passed.")
+            maybe_refresh_context(project_root, state_dir, config, "loop-complete")
             return COMPLETE_EXIT
 
+    maybe_refresh_context(project_root, state_dir, config, "loop-max-iterations")
     print(f"Reached max iterations ({max_iterations}).")
     return MAX_ITER_EXIT
 

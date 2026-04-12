@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -15,18 +16,6 @@ PROMISE_TAG_RE = re.compile(r"<promise>\s*([A-Z]+)(?::(.*?))?\s*</promise>", re.
 
 def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
-
-
-def project_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
-def state_path(root: Path) -> Path:
-    return root / ".codex-loop" / "ralph-loop.json"
-
-
-def hook_log_path(root: Path) -> Path:
-    return root / ".codex-loop" / "logs" / "ralph-hook.log"
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -62,6 +51,38 @@ def first_promise_tag(text: str) -> tuple[str, str] | None:
     return kind, detail
 
 
+def normalize_expected_completion(text: str) -> tuple[str, str] | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+    tagged = first_promise_tag(text)
+    if tagged:
+        return tagged
+    if ":" in text:
+        left, right = text.split(":", 1)
+        return left.strip().upper(), right.strip()
+    return text.upper(), ""
+
+
+def completion_matches(message: str, expected: str) -> bool:
+    actual = first_promise_tag(message)
+    wanted = normalize_expected_completion(expected)
+    if not actual or not wanted:
+        return False
+    return actual[0] == wanted[0] and actual[1] == wanted[1]
+
+
+def all_tasks_complete(root: Path) -> bool:
+    tasks_path = root / ".codex-loop" / "tasks.json"
+    if not tasks_path.exists():
+        return False
+    payload = json.loads(tasks_path.read_text(encoding="utf-8"))
+    tasks = payload.get("tasks", [])
+    if not isinstance(tasks, list) or not tasks:
+        return False
+    return all(str(task.get("status", "")).lower() in {"done", "skipped"} for task in tasks)
+
+
 def build_continuation_prompt(state: dict[str, Any]) -> str:
     max_iterations = state.get("maxIterations")
     max_text = "unbounded" if not max_iterations else str(max_iterations)
@@ -80,6 +101,30 @@ def build_continuation_prompt(state: dict[str, Any]) -> str:
     ).strip()
 
 
+def refresh_context(root: Path, source: str) -> None:
+    script = root / "scripts" / "context_engine.py"
+    if not script.exists():
+        return
+    subprocess.run(
+        [sys.executable, str(script), "refresh", "--source", source],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+
+
+def project_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def state_path(root: Path) -> Path:
+    return root / ".codex-loop" / "ralph-loop.json"
+
+
+def hook_log_path(root: Path) -> Path:
+    return root / ".codex-loop" / "logs" / "ralph-hook.log"
+
+
 def main() -> int:
     root = project_root()
     state_file = state_path(root)
@@ -90,9 +135,7 @@ def main() -> int:
 
     event = read_event()
     message = event.get("last_assistant_message") or ""
-    completion = str(state.get("completionPromise") or "").strip()
     promise = first_promise_tag(message)
-
     state["updatedAt"] = now_iso()
     state["lastAssistantMessage"] = message[-12000:] if message else ""
     state["lastStopEvent"] = {
@@ -101,14 +144,18 @@ def main() -> int:
         "capturedAt": state["updatedAt"],
     }
 
-    if completion and completion in message:
-        state["active"] = False
-        state["status"] = "complete"
-        state["completedAt"] = state["updatedAt"]
-        write_json(state_file, state)
-        append_log(hook_log_path(root), f"[{state['updatedAt']}] complete")
-        print("{}")
-        return 0
+    if completion_matches(message, str(state.get("completionPromise") or "")):
+        if state.get("requireTaskCompletion") and not all_tasks_complete(root):
+            append_log(hook_log_path(root), f"[{state['updatedAt']}] rejected completion because tasks remain open")
+        else:
+            state["active"] = False
+            state["status"] = "complete"
+            state["completedAt"] = state["updatedAt"]
+            write_json(state_file, state)
+            append_log(hook_log_path(root), f"[{state['updatedAt']}] complete")
+            refresh_context(root, "local-stop-hook-complete")
+            print("{}")
+            return 0
 
     if promise and promise[0] in {"BLOCKED", "DECIDE"}:
         state["active"] = False
@@ -116,10 +163,8 @@ def main() -> int:
         state["stoppedAt"] = state["updatedAt"]
         state["stopReason"] = promise[1]
         write_json(state_file, state)
-        append_log(
-            hook_log_path(root),
-            f"[{state['updatedAt']}] stop {promise[0]} {promise[1]}".rstrip(),
-        )
+        append_log(hook_log_path(root), f"[{state['updatedAt']}] stop {promise[0]} {promise[1]}".rstrip())
+        refresh_context(root, f"local-stop-hook-{promise[0].lower()}")
         print("{}")
         return 0
 
@@ -131,6 +176,7 @@ def main() -> int:
         state["stoppedAt"] = state["updatedAt"]
         write_json(state_file, state)
         append_log(hook_log_path(root), f"[{state['updatedAt']}] stop max_iterations")
+        refresh_context(root, "local-stop-hook-max-iterations")
         print("{}")
         return 0
 
@@ -138,10 +184,8 @@ def main() -> int:
     continuation = build_continuation_prompt(state)
     state["lastContinuationPrompt"] = continuation
     write_json(state_file, state)
-    append_log(
-        hook_log_path(root),
-        f"[{state['updatedAt']}] continue iteration={state['currentIteration']}",
-    )
+    append_log(hook_log_path(root), f"[{state['updatedAt']}] continue iteration={state['currentIteration']}")
+    refresh_context(root, "local-stop-hook-continue")
     print(json.dumps({"decision": "block", "reason": continuation}))
     return 0
 

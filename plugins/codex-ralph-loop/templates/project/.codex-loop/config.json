@@ -32,10 +32,15 @@
     "mode": "implementation"
   },
   "checks": {
-    "commands": []
+    "commands": [],
+    "stop_on_failure": true
   },
   "review": {
     "enabled": true,
     "max_findings": 5
+  },
+  "context": {
+    "enabled": true,
+    "refresh_each_iteration": true
   }
 }

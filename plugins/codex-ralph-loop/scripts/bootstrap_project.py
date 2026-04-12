@@ -8,7 +8,8 @@ import sys
 from pathlib import Path
 
 
-IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store")
+IGNORE_NAMES = {"__pycache__", ".DS_Store"}
+IGNORE_SUFFIXES = {".pyc"}
 
 GITIGNORE_BLOCK = """# Codex Ralph loop
 .codex-loop/history/*
@@ -21,18 +22,28 @@ GITIGNORE_BLOCK = """# Codex Ralph loop
 .codex-loop/ralph-loop.json
 .codex-loop/logs/iteration-*.log
 .codex-loop/logs/ralph-hook.log
+.codex-loop/context/current-state.md
+.codex-loop/context/handoff.md
+.codex-loop/context/events.jsonl
+.codex-loop/preflight/status.json
+.codex-loop/preflight/REPORT.md
 """
 
 
-def copy_tree(src: Path, dst: Path, force: bool) -> None:
-    if dst.exists():
-        if not force:
-            raise FileExistsError(f"refusing to overwrite existing path: {dst}")
-        if dst.is_dir():
-            shutil.rmtree(dst)
-        else:
-            dst.unlink()
-    shutil.copytree(src, dst, ignore=IGNORE)
+def should_ignore(path: Path) -> bool:
+    return path.name in IGNORE_NAMES or path.suffix in IGNORE_SUFFIXES
+
+
+def sync_tree(src: Path, dst: Path, force: bool) -> None:
+    dst.mkdir(parents=True, exist_ok=True)
+    for child in sorted(src.iterdir()):
+        if should_ignore(child):
+            continue
+        target = dst / child.name
+        if child.is_dir():
+            sync_tree(child, target, force)
+            continue
+        copy_file(child, target, force)
 
 
 def copy_file(src: Path, dst: Path, force: bool) -> None:
@@ -43,20 +54,9 @@ def copy_file(src: Path, dst: Path, force: bool) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Seed a project with Codex Ralph loop runtime files."
-    )
-    parser.add_argument(
-        "target",
-        nargs="?",
-        default=".",
-        help="Project directory to initialize",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite existing runtime files",
-    )
+    parser = argparse.ArgumentParser(description="Seed a project with SummitHarness runtime files.")
+    parser.add_argument("target", nargs="?", default=".", help="Project directory to initialize")
+    parser.add_argument("--force", action="store_true", help="Overwrite existing runtime files")
     args = parser.parse_args()
 
     plugin_root = Path(__file__).resolve().parents[1]
@@ -69,31 +69,34 @@ def main() -> int:
 
     target_root.mkdir(parents=True, exist_ok=True)
 
-    copy_tree(template_root / ".codex", target_root / ".codex", args.force)
-    copy_tree(template_root / ".codex-loop", target_root / ".codex-loop", args.force)
-    copy_file(
-        template_root / "scripts" / "codex_ralph.py",
-        target_root / "scripts" / "codex_ralph.py",
-        args.force,
-    )
-    copy_file(
-        template_root / "scripts" / "import_hwpx_preview.py",
-        target_root / "scripts" / "import_hwpx_preview.py",
-        args.force,
-    )
-    copy_file(
-        template_root / "scripts" / "ralph_session.py",
-        target_root / "scripts" / "ralph_session.py",
-        args.force,
-    )
+    sync_tree(template_root / ".codex", target_root / ".codex", args.force)
+    sync_tree(template_root / ".codex-loop", target_root / ".codex-loop", args.force)
+
+    for name in [
+        "codex_ralph.py",
+        "import_hwpx_preview.py",
+        "ralph_session.py",
+        "context_engine.py",
+        "preflight.py",
+        "asset_registry.py",
+    ]:
+        copy_file(template_root / "scripts" / name, target_root / "scripts" / name, args.force)
+
     copy_file(template_root / "ralph.sh", target_root / "ralph.sh", args.force)
 
-    ralph_path = target_root / "ralph.sh"
-    ralph_path.chmod(0o755)
-    (target_root / "scripts" / "codex_ralph.py").chmod(0o755)
-    (target_root / "scripts" / "import_hwpx_preview.py").chmod(0o755)
-    (target_root / "scripts" / "ralph_session.py").chmod(0o755)
-    (target_root / ".codex" / "hooks" / "ralph_stop.py").chmod(0o755)
+    for rel in [
+        "ralph.sh",
+        "scripts/codex_ralph.py",
+        "scripts/import_hwpx_preview.py",
+        "scripts/ralph_session.py",
+        "scripts/context_engine.py",
+        "scripts/preflight.py",
+        "scripts/asset_registry.py",
+        ".codex/hooks/ralph_stop.py",
+    ]:
+        target = target_root / rel
+        if target.exists():
+            target.chmod(0o755)
 
     gitignore_path = target_root / ".gitignore"
     existing = gitignore_path.read_text(encoding="utf-8") if gitignore_path.exists() else ""
@@ -103,12 +106,13 @@ def main() -> int:
             encoding="utf-8",
         )
 
-    print(f"Initialized Codex Ralph loop in {target_root}")
+    print(f"Initialized SummitHarness runtime in {target_root}")
     print("Next steps:")
-    print("  1. Edit .codex-loop/prd/PRD.md and SUMMARY.md")
-    print("  2. Replace the sample tasks in .codex-loop/tasks.json")
-    print("  3. Add real checks in .codex-loop/config.json")
-    print("  4. Run ./ralph.sh --once or start /ralph-loop inside Codex")
+    print("  1. Run python3 scripts/preflight.py run")
+    print("  2. Edit .codex-loop/prd/PRD.md and SUMMARY.md")
+    print("  3. Replace the sample tasks in .codex-loop/tasks.json")
+    print("  4. Use python3 scripts/context_engine.py refresh to build the first handoff packet")
+    print("  5. Run ./ralph.sh --once or start /ralph-loop inside Codex")
     return 0
 
 

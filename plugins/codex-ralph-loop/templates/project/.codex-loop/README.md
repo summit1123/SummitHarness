@@ -1,12 +1,14 @@
 # .codex-loop
 
-This directory is the runtime state for the loop.
+This directory is the project-owned runtime state for SummitHarness.
 
-- `prd/`: the product brief the loop must respect
-- `tasks.json`: lookup table for task priority and status
-- `tasks/TASK-*.json`: one task spec per unit of work
-- `PROMPT.md`: the stable instruction block sent every iteration
-- `STEERING.md`: urgent manual course corrections
+- `prd/`: the brief the harness must respect
+- `tasks.json` and `tasks/`: the implementation graph
+- `PROMPT.md`: stable instruction block
+- `STEERING.md`: urgent course corrections
+- `context/`: compressed handoff packets and durable facts
+- `assets/registry.json`: approved/reference design assets
+- `preflight/`: environment and toolchain checks
 - `logs/`, `history/`, `reviews/`: run records
 - `ralph-loop.json`: state for the Stop-hook self-loop mode
 

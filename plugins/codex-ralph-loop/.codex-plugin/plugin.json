@@ -1,27 +1,28 @@
 {
   "name": "codex-ralph-loop",
-  "version": "0.1.0",
-  "description": "Project-local Codex loop for PRD-driven implementation, checks, and review gates.",
+  "version": "0.2.0",
+  "description": "Open-source Codex product harness with Ralph-compatible loops, compressed context, preflight checks, and asset-aware workflows.",
   "author": {
     "name": "gimdonghyeon",
-    "url": "https://github.com/gimdonghyeon"
+    "url": "https://github.com/summit1123/SummitHarness"
   },
-  "homepage": "https://example.com/codex-ralph-loop",
-  "repository": "https://example.com/codex-ralph-loop",
+  "homepage": "https://github.com/summit1123/SummitHarness",
+  "repository": "https://github.com/summit1123/SummitHarness",
   "license": "MIT",
   "keywords": [
     "codex",
     "ralph-loop",
-    "planning",
-    "review",
-    "automation"
+    "harness",
+    "context-compression",
+    "automation",
+    "design"
   ],
   "skills": "./skills/",
   "hooks": "./hooks.json",
   "interface": {
-    "displayName": "Codex Ralph Loop",
-    "shortDescription": "PRD-driven build loops with local checks and a read-only review gate",
-    "longDescription": "Use Codex Ralph Loop to keep work grounded in a project-local PRD, task files, steering notes, checks, and a dedicated review pass instead of a blind retry loop.",
+    "displayName": "SummitHarness",
+    "shortDescription": "PRD-driven product harness with compressed context, checks, design assets, and Ralph-compatible loops",
+    "longDescription": "Use SummitHarness to turn requirements into a project-local Codex runtime with preflight validation, compressed context packets, design-aware asset tracking, deterministic checks, review gates, and optional Stop-hook self-loops.",
     "developerName": "gimdonghyeon",
     "category": "Coding",
     "capabilities": [
@@ -29,13 +30,13 @@
       "Read",
       "Write"
     ],
-    "websiteURL": "https://example.com/codex-ralph-loop",
+    "websiteURL": "https://github.com/summit1123/SummitHarness",
     "privacyPolicyURL": "https://openai.com/policies/privacy-policy/",
     "termsOfServiceURL": "https://openai.com/policies/terms-of-use/",
     "defaultPrompt": [
-      "Run the Codex Ralph loop for my PRD and task files",
-      "Review my loop runtime and improve the evaluator gates",
-      "Turn a planning doc into a task-driven Codex build loop"
+      "Bootstrap SummitHarness in this repository and run preflight",
+      "Refresh the compressed context packet and continue the active build loop",
+      "Turn a planning brief into a design-aware Codex product harness"
     ],
     "brandColor": "#111827",
     "composerIcon": "./assets/codex-ralph-loop-small.svg",

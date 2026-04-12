@@ -1,10 +1,11 @@
 ---
 name: ralph-runtime
-description: Run or refine the Codex Ralph loop for implementation work, using project tasks, local checks, and promise-based stop conditions.
+description: Run or refine the SummitHarness implementation loop, using project tasks, compressed handoff packets, local checks, and a read-only review gate.
 metadata:
   priority: 5
   pathPatterns:
     - '.codex-loop/config.json'
+    - '.codex-loop/context/**'
     - '.codex-loop/logs/**'
     - '.codex-loop/history/**'
     - 'scripts/codex_ralph.py'
@@ -41,6 +42,7 @@ retrieval:
     - BLOCKED
     - DECIDE
     - config.json
+    - handoff.md
     - LOG.md
   examples:
     - run the codex ralph loop for 6 iterations
@@ -52,9 +54,13 @@ chainTo:
     targetSkill: ralph-review-gate
     message: 'Review and regression concerns detected — loading review gate guidance.'
   -
-    pattern: '(design|ux|visual|mobile|screenshot|layout)'
+    pattern: '(design|ux|visual|mobile|screenshot|layout|asset)'
     targetSkill: ralph-design-gate
     message: 'Design-sensitive work detected — loading design gate guidance.'
+  -
+    pattern: '(context|handoff|memory|compression|summit harness)'
+    targetSkill: summit-context-engine
+    message: 'Compressed context concerns detected — loading context engine guidance.'
 ---
 
 # Ralph Runtime
@@ -64,6 +70,7 @@ Use this skill when the user wants the loop to actually drive implementation.
 ## Expectations
 
 - The loop should read task state, not rely on memory alone.
+- The compressed handoff packet should be refreshed as the repo changes.
 - Deterministic commands belong in `checks.commands`.
 - Promise tags are a hard contract, not an escape hatch.
 - Review should stay severe-only so the loop can converge.

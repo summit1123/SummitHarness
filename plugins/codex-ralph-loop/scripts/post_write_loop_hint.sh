@@ -1,3 +1,3 @@
 #!/bin/zsh
 
-echo "[codex-ralph-loop] Bash tool finished. If workspace files changed, keep .codex-loop/tasks.json and the active task spec in sync before finalizing."
+echo "[summit-harness] Bash tool finished. If repo state changed, keep .codex-loop/tasks.json, the active task spec, and .codex-loop/context/handoff.md in sync before finalizing."
