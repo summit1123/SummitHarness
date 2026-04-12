@@ -61,6 +61,8 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 ## slash command
 
+설치형 플러그인에서 바로 보이는 전역 명령과, bootstrap 이후 repo 안에 심어지는 project-local 명령이 함께 들어 있습니다.
+
 - `/init-codex-ralph`
 - `/summit-brainstorm`
 - `/summit-write-plan`

@@ -16,6 +16,7 @@ STOP_DISPATCH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "scripts" / "stop_h
 CODEX_RALPH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "codex_ralph.py"
 CONTEXT_ENGINE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "context_engine.py"
 INSTALLER = REPO_ROOT / "plugins" / "codex-ralph-loop" / "scripts" / "install_home_local.py"
+PLUGIN_COMMANDS_DIR = REPO_ROOT / "plugins" / "codex-ralph-loop" / "commands"
 
 
 def load_module(path: Path, name: str):
@@ -453,6 +454,21 @@ if __name__ == "__main__":
             self.assertIn("hooks.json", originals)
             self.assertIn("codex-ralph-loop", plugin_dir.name)
             self.assertIn("codex_hooks = true", codex_config.read_text(encoding="utf-8"))
+
+
+    def test_plugin_bundle_includes_documented_global_commands(self) -> None:
+        expected = {
+            "init-codex-ralph.md",
+            "run-codex-ralph.md",
+            "ralph-loop.md",
+            "cancel-ralph.md",
+            "summit-preflight.md",
+            "summit-context-refresh.md",
+            "summit-brainstorm.md",
+            "summit-write-plan.md",
+        }
+        actual = {path.name for path in PLUGIN_COMMANDS_DIR.glob("*.md")}
+        self.assertTrue(expected.issubset(actual))
 
     def test_context_engine_recent_progress_is_empty_without_iterations(self) -> None:
         mod = load_module(CONTEXT_ENGINE, "context_engine_test")

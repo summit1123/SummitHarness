@@ -1,6 +1,6 @@
 {
   "name": "codex-ralph-loop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Open-source Codex product harness with Ralph-compatible loops, compressed context, preflight checks, and asset-aware workflows.",
   "author": {
     "name": "gimdonghyeon",
