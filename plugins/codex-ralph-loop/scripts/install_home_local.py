@@ -7,20 +7,26 @@ import json
 import os
 import re
 import shutil
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 
 PLUGIN_NAME = "codex-ralph-loop"
 IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store")
 
 
-def read_json(path: Path, default: dict) -> dict:
+def now_stamp() -> str:
+    return datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
+
+
+def read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
     if not path.exists():
         return default
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def write_json(path: Path, payload: dict) -> None:
+def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
@@ -54,7 +60,55 @@ def marketplace_source_path(install_root: Path, home: Path) -> str:
         return str(install_root)
 
 
-def install_plugin(plugin_root: Path, install_root: Path, marketplace_path: Path, home: Path) -> tuple[Path, Path]:
+def backup_existing(target: Path, backup_root: Path, entries: list[dict[str, str]], label: str) -> Path | None:
+    if not target.exists() and not target.is_symlink():
+        return None
+
+    backup_root.mkdir(parents=True, exist_ok=True)
+    backup_path = backup_root / label
+    if backup_path.exists():
+        if backup_path.is_dir() and not backup_path.is_symlink():
+            shutil.rmtree(backup_path)
+        else:
+            backup_path.unlink()
+
+    if target.is_dir() and not target.is_symlink():
+        shutil.copytree(target, backup_path, ignore=IGNORE)
+        entry_type = "directory"
+    else:
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(target, backup_path)
+        entry_type = "file"
+
+    entries.append(
+        {
+            "type": entry_type,
+            "original": str(target),
+            "backup": str(backup_path),
+        }
+    )
+    return backup_path
+
+
+def write_backup_manifest(backup_root: Path, entries: list[dict[str, str]]) -> Path | None:
+    if not entries:
+        return None
+    manifest = {
+        "createdAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "plugin": PLUGIN_NAME,
+        "entries": entries,
+    }
+    path = backup_root / "manifest.json"
+    write_json(path, manifest)
+    return path
+
+
+def install_plugin(
+    plugin_root: Path,
+    install_root: Path,
+    marketplace_path: Path,
+    home: Path,
+) -> tuple[Path, Path]:
     install_root.parent.mkdir(parents=True, exist_ok=True)
     replace_tree(plugin_root, install_root)
 
@@ -144,7 +198,7 @@ def install_personal_skills(repo_root: Path, user_skills_dir: Path) -> list[str]
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Install the Codex Ralph loop plugin for local Codex use.")
+    parser = argparse.ArgumentParser(description="Install the SummitHarness plugin for local Codex use.")
     parser.add_argument(
         "--plugin-dir",
         default=str(Path.home() / ".codex" / "plugins" / PLUGIN_NAME),
@@ -168,7 +222,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--codex-hooks",
         default=str(Path.home() / ".codex" / "hooks.json"),
-        help="Global hooks.json to update with the Ralph Stop hook dispatcher",
+        help="Global hooks.json to update with the SummitHarness Stop hook dispatcher",
+    )
+    parser.add_argument(
+        "--backup-root",
+        default=str(Path.home() / ".codex" / "backups" / PLUGIN_NAME / now_stamp()),
+        help="Directory where install backups should be stored",
+    )
+    parser.add_argument(
+        "--no-backup",
+        action="store_true",
+        help="Skip creating install backups before modifying local config",
     )
     parser.add_argument(
         "--no-personal-skills",
@@ -188,12 +252,21 @@ def main() -> int:
     user_skills_dir = Path(args.user_skills_dir).expanduser().resolve()
     codex_config_path = Path(args.codex_config).expanduser().resolve()
     codex_hooks_path = Path(args.codex_hooks).expanduser().resolve()
+    backup_root = Path(args.backup_root).expanduser().resolve()
+
+    backup_entries: list[dict[str, str]] = []
+    if not args.no_backup:
+        backup_existing(install_root, backup_root, backup_entries, "plugin-install")
+        backup_existing(marketplace_path, backup_root, backup_entries, "marketplace.json")
+        backup_existing(codex_config_path, backup_root, backup_entries, "config.toml")
+        backup_existing(codex_hooks_path, backup_root, backup_entries, "hooks.json")
 
     installed_plugin_path, installed_marketplace = install_plugin(
         plugin_root, install_root, marketplace_path, home
     )
     ensure_codex_hooks_enabled(codex_config_path)
     installed_hooks = install_global_stop_hook(codex_hooks_path, install_root)
+    manifest_path = write_backup_manifest(backup_root, backup_entries)
 
     personal = []
     if not args.no_personal_skills:
@@ -203,6 +276,14 @@ def main() -> int:
     print(f"Updated marketplace at {installed_marketplace}")
     print(f"Enabled codex_hooks in {codex_config_path}")
     print(f"Installed Stop hook dispatcher in {installed_hooks}")
+    if manifest_path:
+        print(f"Created install backup manifest at {manifest_path}")
+        print(
+            "Restore with: "
+            f'python3 "{(install_root / "scripts" / "restore_install_backup.py").as_posix()}" "{backup_root.as_posix()}"'
+        )
+    elif args.no_backup:
+        print("Install backups were skipped by request.")
     if personal:
         print("Installed personal skills:")
         for skill in personal:

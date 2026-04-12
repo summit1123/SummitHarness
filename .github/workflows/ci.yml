@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python scripts
+        run: |
+          python3 -m py_compile \
+            plugins/codex-ralph-loop/scripts/bootstrap_project.py \
+            plugins/codex-ralph-loop/scripts/install_home_local.py \
+            plugins/codex-ralph-loop/scripts/restore_install_backup.py \
+            plugins/codex-ralph-loop/scripts/stop_hook_dispatch.py \
+            plugins/codex-ralph-loop/templates/project/scripts/codex_ralph.py \
+            plugins/codex-ralph-loop/templates/project/scripts/ralph_session.py \
+            plugins/codex-ralph-loop/templates/project/scripts/context_engine.py \
+            plugins/codex-ralph-loop/templates/project/scripts/preflight.py \
+            plugins/codex-ralph-loop/templates/project/scripts/asset_registry.py \
+            plugins/codex-ralph-loop/templates/project/.codex/hooks/ralph_stop.py
+      - name: Run unittest smoke suite
+        run: python3 -m unittest discover -s tests -v

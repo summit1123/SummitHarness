@@ -98,6 +98,26 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 즉 사용자는 짧은 명령만 치지만, 하네스 내부에서는 `preflight -> compression -> execution -> evaluation -> refresh` 순환이 계속 일어납니다.
 
+## 검증
+
+로컬에서 기본 smoke suite를 돌릴 수 있습니다.
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+GitHub Actions도 같은 흐름으로 `py_compile + unittest`를 돌립니다: [ci.yml](../../.github/workflows/ci.yml)
+
+## 설치 백업과 복구
+
+installer는 이제 plugin install tree, marketplace, `config.toml`, `hooks.json`을 수정하기 전에 backup manifest를 남깁니다.
+
+설치 출력에 restore 명령이 함께 표시되며, 복구는 아래 스크립트로 할 수 있습니다.
+
+```bash
+python3 scripts/restore_install_backup.py <backup-dir>
+```
+
 ## 이 플러그인이 지향하는 것
 
 이 플러그인은 단순한 "반복 실행기"보다 더 큰 범위를 봅니다.

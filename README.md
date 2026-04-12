@@ -210,6 +210,30 @@ Use $codex-ralph-loop to run the project-local SummitHarness loop from the curre
 
 이미지/영상/Figma 연결은 환경에 따라 Codex의 `imagegen`, `sora`, `figma-implement-design` 워크플로와 연결할 수 있습니다.
 
+## 품질 게이트
+
+현재 공개 저장소 기준 기본 검증 경로는 아래입니다.
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+GitHub Actions에서도 같은 smoke suite가 자동으로 돌게 되어 있습니다: [ci.yml](.github/workflows/ci.yml)
+
+## 설치 백업과 복구
+
+`python3 install.py`는 이제 사용자 로컬 설정을 건드리기 전에 backup manifest를 남깁니다.
+
+설치 출력에 backup 경로와 restore 명령이 함께 표시됩니다.
+
+예:
+
+```bash
+python3 ~/.codex/plugins/codex-ralph-loop/scripts/restore_install_backup.py <backup-dir>
+```
+
+즉 설치가 마음에 들지 않거나 환경이 꼬였을 때, 기존 `config.toml`, `hooks.json`, marketplace, 이전 plugin install tree를 되돌릴 수 있습니다.
+
 ## 문서
 
 - [Architecture](docs/ARCHITECTURE.md)
