@@ -201,6 +201,211 @@ NEXT: Add tests.
         }
         self.assertFalse(mod.tasks_need_seed(custom_index, custom_index["tasks"]))
 
+    def test_loop_can_replan_after_goal_evaluator_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+
+            stub = root / "stub_agent.py"
+            stub.write_text(
+                r"""#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+def load_json(path: Path, default):
+    if not path.exists():
+        return default
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def write_json(path: Path, payload) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_last(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text.strip() + "\n", encoding="utf-8")
+
+
+def mark_task(root: Path, task_id: str, status: str) -> None:
+    tasks_path = root / ".codex-loop" / "tasks.json"
+    index = load_json(tasks_path, {})
+    for task in index.get("tasks", []):
+        if str(task.get("id")) == task_id:
+            task["status"] = status
+    write_json(tasks_path, index)
+
+    task_path = root / ".codex-loop" / "tasks" / f"TASK-{task_id}.json"
+    task_payload = load_json(task_path, {"id": task_id})
+    task_payload["status"] = status
+    write_json(task_path, task_payload)
+
+
+def seed_graph(root: Path) -> None:
+    state_dir = root / ".codex-loop"
+    write_json(
+        state_dir / "tasks.json",
+        {
+            "project": "Stub Integration Project",
+            "selection": "priority-order",
+            "tasks": [
+                {
+                    "id": "001",
+                    "title": "Build initial slice",
+                    "status": "todo",
+                    "priority": "p0",
+                    "file": "tasks/TASK-001.json",
+                }
+            ],
+        },
+    )
+    write_json(
+        state_dir / "tasks" / "TASK-001.json",
+        {
+            "id": "001",
+            "title": "Build initial slice",
+            "status": "todo",
+            "priority": "p0",
+            "dependsOn": [],
+            "deliverables": ["app.txt"],
+            "acceptance": ["Create the first partial artifact."],
+        },
+    )
+
+
+def replan_graph(root: Path) -> None:
+    state_dir = root / ".codex-loop"
+    index = load_json(state_dir / "tasks.json", {})
+    tasks = index.get("tasks", [])
+    have_001 = any(str(task.get("id")) == "001" for task in tasks)
+    have_002 = any(str(task.get("id")) == "002" for task in tasks)
+    if not have_001:
+        tasks.append({
+            "id": "001",
+            "title": "Build initial slice",
+            "status": "completed",
+            "priority": "p0",
+            "file": "tasks/TASK-001.json",
+        })
+    for task in tasks:
+        if str(task.get("id")) == "001":
+            task["status"] = "completed"
+    if not have_002:
+        tasks.append({
+            "id": "002",
+            "title": "Finish the goal",
+            "status": "todo",
+            "priority": "p0",
+            "file": "tasks/TASK-002.json",
+        })
+    index["tasks"] = tasks
+    write_json(state_dir / "tasks.json", index)
+    write_json(
+        state_dir / "tasks" / "TASK-002.json",
+        {
+            "id": "002",
+            "title": "Finish the goal",
+            "status": "todo",
+            "priority": "p0",
+            "dependsOn": ["001"],
+            "deliverables": ["app.txt"],
+            "acceptance": ["Finalize the artifact so the goal truly passes."],
+        },
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", required=True, choices=["worker", "review", "evaluator"])
+    parser.add_argument("output_last_message")
+    args = parser.parse_args()
+
+    prompt = sys.stdin.read()
+    root = Path.cwd()
+
+    if args.mode == "review":
+        write_last(Path(args.output_last_message), "RESULT: PASS\nSUMMARY: Stub review passed.\nFINDINGS:\n- none")
+        return 0
+
+    if args.mode == "evaluator":
+        app_text = (root / "app.txt").read_text(encoding="utf-8").strip() if (root / "app.txt").exists() else ""
+        tasks = load_json(root / ".codex-loop" / "tasks.json", {}).get("tasks", [])
+        all_done = tasks and all(str(task.get("status", "")).lower() in {"done", "completed", "complete", "skipped"} for task in tasks)
+        have_002 = any(str(task.get("id")) == "002" for task in tasks)
+        if all_done and have_002 and app_text == "final":
+            write_last(Path(args.output_last_message), "RESULT: PASS\nSTATUS: COMPLETE\nSUMMARY: Goal satisfied with a truthful final artifact.\nNEXT: Ship it.\nMISSING:\n- none")
+        elif all_done:
+            write_last(Path(args.output_last_message), "RESULT: FAIL\nSTATUS: INCOMPLETE\nSUMMARY: The task list says done, but the goal is still not fully met.\nNEXT: Replan the remaining work.\nMISSING:\n- final artifact still incomplete")
+        else:
+            write_last(Path(args.output_last_message), "RESULT: FAIL\nSTATUS: INCOMPLETE\nSUMMARY: Work is still in progress.\nNEXT: Continue the current task graph.\nMISSING:\n- open tasks remain")
+        return 0
+
+    if "initializing the SummitHarness task graph for the first real loop run" in prompt:
+        seed_graph(root)
+        write_last(Path(args.output_last_message), "<promise>COMPLETE</promise>\nSeeded initial task graph.")
+        return 0
+
+    if "refreshing the SummitHarness task graph because the goal evaluator found remaining work" in prompt:
+        replan_graph(root)
+        write_last(Path(args.output_last_message), "<promise>COMPLETE</promise>\nReplanned the remaining work.")
+        return 0
+
+    if '"id": "002"' in prompt or "Finish the goal" in prompt:
+        (root / "app.txt").write_text("final\n", encoding="utf-8")
+        mark_task(root, "002", "completed")
+        write_last(Path(args.output_last_message), "<promise>COMPLETE</promise>\nFinished the remaining work.")
+        return 0
+
+    if '"id": "001"' in prompt or "Build initial slice" in prompt:
+        (root / "app.txt").write_text("partial\n", encoding="utf-8")
+        mark_task(root, "001", "completed")
+        write_last(Path(args.output_last_message), "Implemented the initial slice.")
+        return 0
+
+    write_last(Path(args.output_last_message), "No-op stub response.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+""",
+                encoding="utf-8",
+            )
+
+            config_path = root / ".codex-loop" / "config.json"
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            config["agent"]["command"] = [sys.executable, str(stub), "--mode", "worker", "{output_last_message}"]
+            config["agent"]["review_command"] = [sys.executable, str(stub), "--mode", "review", "{output_last_message}"]
+            config["evaluator"]["command"] = [sys.executable, str(stub), "--mode", "evaluator", "{output_last_message}"]
+            config["checks"]["commands"] = []
+            config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            result = subprocess.run(
+                [sys.executable, str(root / "scripts" / "codex_ralph.py"), "-n", "3"],
+                cwd=root,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            tasks_index = json.loads((root / ".codex-loop" / "tasks.json").read_text(encoding="utf-8"))
+            statuses = {task["id"]: task["status"] for task in tasks_index["tasks"]}
+            self.assertEqual(statuses["001"], "completed")
+            self.assertEqual(statuses["002"], "completed")
+            self.assertEqual((root / "app.txt").read_text(encoding="utf-8").strip(), "final")
+            self.assertTrue((root / ".codex-loop" / "history" / "iteration-001-replan-last.md").exists())
+            self.assertTrue((root / ".codex-loop" / "evals" / "iteration-001-eval-last.md").exists())
+            log_text = (root / ".codex-loop" / "logs" / "LOG.md").read_text(encoding="utf-8")
+            self.assertIn("Goal Eval", log_text)
+            self.assertIn("Goal satisfied with a truthful final artifact.", log_text)
+
     def test_installer_creates_backup_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
