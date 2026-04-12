@@ -75,6 +75,7 @@ class SummitHarnessTests(unittest.TestCase):
             payload = json.loads(status.stdout)
             self.assertIn("Hero v1", "\n".join(payload["approvedAssets"]))
             self.assertIn("nextBestStep", payload)
+            self.assertIn("auto-generate the real task graph", payload["nextBestStep"])
 
     def test_stop_hook_does_not_accept_completion_mention_when_tasks_are_open(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -145,6 +146,39 @@ class SummitHarnessTests(unittest.TestCase):
             with mock.patch.object(mod.os.path, "exists", side_effect=fake_exists):
                 with mock.patch.object(mod.shutil, "which", return_value=None):
                     self.assertEqual(mod.resolve_check_shell(), ["/bin/bash", "-lc"])
+
+    def test_select_task_accepts_completed_status_as_done(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_completed_test")
+        tasks = [
+            {"id": "001", "status": "completed", "priority": "p0", "title": "Audit"},
+            {"id": "002", "status": "todo", "priority": "p0", "title": "Draft"},
+        ]
+        specs = {"001": {"dependsOn": []}, "002": {"dependsOn": ["001"]}}
+        selected = mod.select_task(tasks, specs)
+        self.assertIsNotNone(selected)
+        self.assertEqual(selected["id"], "002")
+
+    def test_tasks_need_seed_detects_bootstrap_template(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_seed_test")
+        tasks_index = {
+            "project": "Codex Ralph Loop Workspace",
+            "source": "bootstrap-template",
+            "tasks": [
+                {"id": "001", "title": "Brainstorm and lock the build brief", "status": "todo"},
+                {"id": "002", "title": "Write the first execution plan", "status": "todo"},
+                {"id": "003", "title": "Build and verify the first vertical slice", "status": "todo"},
+            ],
+        }
+        self.assertTrue(mod.tasks_need_seed(tasks_index, tasks_index["tasks"]))
+
+        custom_index = {
+            "project": "MIRROR contest submission planning workspace",
+            "tasks": [
+                {"id": "001", "title": "Audit current MIRROR reality and contest constraints", "status": "todo"},
+                {"id": "002", "title": "Draft the Korean web-form submission answers", "status": "todo"},
+            ],
+        }
+        self.assertFalse(mod.tasks_need_seed(custom_index, custom_index["tasks"]))
 
     def test_installer_creates_backup_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

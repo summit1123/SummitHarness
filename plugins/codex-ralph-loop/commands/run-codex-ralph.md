@@ -4,12 +4,13 @@ Run the project-local SummitHarness loop.
 
 ## Recommended flow
 
-1. Confirm `.codex-loop/prd/PRD.md` and `.codex-loop/tasks.json` are current
-2. Run `python3 scripts/context_engine.py refresh --source pre-run`
-3. Confirm `.codex-loop/config.json` contains real local checks
-4. Run `./ralph.sh -n 6` for a short supervised session
-5. Use `.codex-loop/STEERING.md` for urgent course corrections during the run
-6. Review `.codex-loop/context/handoff.md`, `logs/`, `history/`, and `reviews/` after the session
+1. Confirm `.codex-loop/prd/PRD.md` and `.codex-loop/prd/SUMMARY.md` reflect the current goal
+2. If `.codex-loop/tasks.json` is still the bootstrap template, leave it alone and let the first run auto-seed it
+3. Run `python3 scripts/context_engine.py refresh --source pre-run`
+4. Confirm `.codex-loop/config.json` contains real local checks
+5. Run `./ralph.sh -n 6` for a short supervised session
+6. Use `.codex-loop/STEERING.md` for urgent course corrections during the run
+7. Review `.codex-loop/context/handoff.md`, `logs/`, `history/`, and `reviews/` after the session
 
 ## Stop conditions
 
@@ -20,4 +21,5 @@ Run the project-local SummitHarness loop.
 ## Notes
 
 - This command is the external worker-style loop.
+- If the task graph is still a bootstrap template, this run seeds a real one before implementation starts.
 - For same-session Stop-hook Ralph, use `/ralph-loop ...` instead.

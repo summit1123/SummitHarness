@@ -31,6 +31,11 @@ ERROR_EXIT = 4
 PROMISE_RE = re.compile(r"<promise>(.*?)</promise>", re.DOTALL)
 REVIEW_RE = re.compile(r"RESULT:\s*(PASS|FAIL)", re.IGNORECASE)
 PRIORITY_ORDER = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
+DEFAULT_TEMPLATE_TASK_TITLES = {
+    "Brainstorm and lock the build brief",
+    "Write the first execution plan",
+    "Build and verify the first vertical slice",
+}
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "version": 1,
@@ -64,6 +69,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "completion_promise": "COMPLETE",
         "max_iterations": 8,
         "mode": "implementation",
+        "auto_seed_tasks": True,
     },
     "checks": {
         "commands": [],
@@ -196,8 +202,12 @@ def load_config(project_root: Path, state_dir: Path, args: argparse.Namespace) -
     return config
 
 
+def load_tasks_index(state_dir: Path) -> dict[str, Any]:
+    return load_json(state_dir / "tasks.json")
+
+
 def load_tasks(state_dir: Path) -> list[dict[str, Any]]:
-    tasks_index = load_json(state_dir / "tasks.json")
+    tasks_index = load_tasks_index(state_dir)
     tasks = tasks_index.get("tasks", [])
     if not isinstance(tasks, list):
         raise ValueError(".codex-loop/tasks.json must contain a 'tasks' array")
@@ -228,7 +238,7 @@ def task_sort_key(task: dict[str, Any]) -> tuple[int, str]:
 
 
 def task_is_done(task: dict[str, Any]) -> bool:
-    return str(task.get("status", "")).lower() in {"done", "skipped"}
+    return str(task.get("status", "")).lower() in {"done", "completed", "complete", "skipped"}
 
 
 def task_dependencies(task: dict[str, Any], specs: dict[str, dict[str, Any]]) -> list[str]:
@@ -263,6 +273,22 @@ def blocked_tasks(tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]])
     return [task for task in pending if not task_is_ready(task, specs, done_ids)]
 
 
+def tasks_need_seed(tasks_index: dict[str, Any], tasks: list[dict[str, Any]]) -> bool:
+    if not tasks:
+        return True
+
+    source = str(tasks_index.get("source", "")).strip().lower()
+    if source == "bootstrap-template":
+        return True
+
+    project = str(tasks_index.get("project", "")).strip()
+    titles = {str(task.get("title", "")).strip() for task in tasks if str(task.get("title", "")).strip()}
+    if project == "Codex Ralph Loop Workspace" and titles == DEFAULT_TEMPLATE_TASK_TITLES:
+        return True
+
+    return False
+
+
 def all_tasks_complete(tasks: list[dict[str, Any]]) -> bool:
     return bool(tasks) and all(task_is_done(task) for task in tasks)
 
@@ -295,6 +321,69 @@ def first_nonempty_line(text: str, limit: int = 160) -> str:
         if line:
             return line[:limit]
     return ""
+
+
+def build_task_seed_prompt(
+    *,
+    config: dict[str, Any],
+    state_dir: Path,
+    steering_text: str,
+    git_available: bool,
+) -> str:
+    prompt_md = read_text(state_dir / "PROMPT.md")
+    prd_md = read_text(state_dir / "prd" / "PRD.md")
+    summary_md = read_text(state_dir / "prd" / "SUMMARY.md")
+    handoff_md = read_text(state_dir / "context" / "handoff.md") or "No compressed handoff exists yet."
+    steering_block = steering_text or "No active steering notes."
+    git_note = (
+        "Git is available. Replace the template task graph with a real one and keep the files synchronized."
+        if git_available
+        else "Git is not available. Work directly in the workspace and keep the generated task files synchronized."
+    )
+
+    return f'''You are initializing the SummitHarness task graph for the first real loop run.
+
+Mode: {config['loop']['mode']}
+Promise contract:
+- Emit <promise>DECIDE:question</promise> only if a critical ambiguity blocks trustworthy planning.
+- Emit <promise>BLOCKED:reason</promise> only if you truly cannot proceed.
+- Emit <promise>{config['loop']['completion_promise']}</promise> only when the bootstrap task graph is ready for execution.
+
+Your job right now is planning, not product implementation.
+
+Required outcomes:
+- Replace the template `.codex-loop/tasks.json` with a project-specific task graph.
+- Replace the placeholder `.codex-loop/tasks/TASK-*.json` files with task specs that match the actual goal.
+- Tighten `.codex-loop/prd/PRD.md` and `.codex-loop/prd/SUMMARY.md` if the current brief is too vague.
+- Leave the repo with one clearly runnable first task.
+
+Planning rules:
+- Prefer 3 to 7 tasks unless the repo state clearly demands otherwise.
+- Use a Superpowers-style shape when it fits: brainstorm/spec lock -> execution plan -> implementation slices -> verification.
+- The first task should usually lock the brief, users, constraints, and acceptance bar unless that work is already done.
+- The second task should usually turn the approved brief into an executable plan or task graph refinement.
+- Later tasks should be vertical slices with real dependencies and explicit verification.
+- Include acceptance criteria and concrete deliverables in each task file.
+- Record assumptions instead of hiding them.
+- Do not keep the default sample tasks unless they genuinely match the project.
+- Do not implement the product itself in this bootstrap step unless a tiny edit is required to clarify planning state.
+- {git_note}
+
+Compressed context packet:
+{handoff_md}
+
+Base prompt:
+{prompt_md}
+
+Current PRD:
+{prd_md}
+
+Current summary:
+{summary_md}
+
+Steering:
+{steering_block}
+'''
 
 
 def build_worker_prompt(
@@ -591,12 +680,56 @@ def main() -> int:
     stop_on_failure = bool(config["checks"].get("stop_on_failure", True))
 
     try:
-        tasks = load_tasks(state_dir)
+        tasks_index = load_tasks_index(state_dir)
+        tasks = tasks_index.get("tasks", [])
+        if not isinstance(tasks, list):
+            raise ValueError(".codex-loop/tasks.json must contain a 'tasks' array")
     except Exception as exc:
         print(f"failed to load tasks: {exc}", file=sys.stderr)
         return ERROR_EXIT
 
     maybe_refresh_context(project_root, state_dir, config, "loop-start")
+
+    if bool(config["loop"].get("auto_seed_tasks", True)) and tasks_need_seed(tasks_index, tasks):
+        seed_last_message = state_dir / "history" / "seed-worker-last.md"
+        seed_log = state_dir / "history" / "seed-worker.log"
+        steering_text = active_steering(read_text(state_dir / "STEERING.md"))
+        seed_prompt = build_task_seed_prompt(
+            config=config,
+            state_dir=state_dir,
+            steering_text=steering_text,
+            git_available=git_available,
+        )
+        seed_result = run_codex(
+            prompt=seed_prompt,
+            command_value=config["agent"]["command"],
+            project_root=project_root,
+            output_last_message=seed_last_message,
+            log_path=seed_log,
+            extra_env=config["agent"].get("env", {}),
+        )
+        seed_promise = parse_promise(seed_result["last_message"])
+        maybe_refresh_context(project_root, state_dir, config, "task-seed-complete")
+        tasks_index = load_tasks_index(state_dir)
+        tasks = tasks_index.get("tasks", [])
+        if seed_promise.startswith("BLOCKED:"):
+            print(f"Task bootstrap blocked: {seed_promise}")
+            return BLOCKED_EXIT
+        if seed_promise.startswith("DECIDE:"):
+            print(f"Task bootstrap needs a decision: {seed_promise}")
+            return DECIDE_EXIT
+        if tasks_need_seed(tasks_index, tasks):
+            print("Task bootstrap did not produce a usable task graph.", file=sys.stderr)
+            return ERROR_EXIT
+        append_loop_log(
+            state_dir,
+            iteration=0,
+            task=None,
+            promise=seed_promise or "seeded",
+            checks_summary="Not run.",
+            review_summary="Not run.",
+            message=first_nonempty_line(seed_result["last_message"]) or "Task graph bootstrap completed.",
+        )
 
     if all_tasks_complete(tasks):
         print("All tasks are already complete.")

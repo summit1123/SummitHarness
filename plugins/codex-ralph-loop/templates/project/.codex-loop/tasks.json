@@ -4,24 +4,25 @@
   "tasks": [
     {
       "id": "001",
-      "title": "Rewrite the PRD into a buildable brief",
+      "title": "Brainstorm and lock the build brief",
       "status": "todo",
       "priority": "p0",
       "file": "tasks/TASK-001.json"
     },
     {
       "id": "002",
-      "title": "Define the user flow and design direction",
+      "title": "Write the first execution plan",
       "status": "todo",
       "priority": "p0",
       "file": "tasks/TASK-002.json"
     },
     {
       "id": "003",
-      "title": "Build the first end-to-end slice",
+      "title": "Build and verify the first vertical slice",
       "status": "todo",
       "priority": "p1",
       "file": "tasks/TASK-003.json"
     }
-  ]
+  ],
+  "source": "bootstrap-template"
 }

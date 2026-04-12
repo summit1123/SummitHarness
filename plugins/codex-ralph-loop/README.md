@@ -56,9 +56,13 @@ python3 scripts/context_engine.py refresh --source bootstrap
 ./ralph.sh --once
 ```
 
+처음 bootstrap 직후의 task graph는 템플릿입니다. 실제 goal은 `.codex-loop/prd/PRD.md`, `.codex-loop/prd/SUMMARY.md`, `.codex-loop/config.json`에 적고, 첫 Ralph run이 그 내용을 바탕으로 task graph를 자동 재작성합니다.
+
 ## slash command
 
 - `/init-codex-ralph`
+- `/summit-brainstorm`
+- `/summit-write-plan`
 - `/run-codex-ralph`
 - `/ralph-loop ...`
 - `/cancel-ralph`
@@ -71,18 +75,20 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 1. 플러그인 설치
 2. 대상 repo bootstrap
-3. preflight 실행
-4. context refresh
-5. PRD/task 확인
-6. `./ralph.sh` 또는 `/ralph-loop` 실행
+3. PRD/SUMMARY와 로컬 checks 설정
+4. preflight 실행
+5. context refresh
+6. 첫 `./ralph.sh` 또는 `/ralph-loop` 실행
+7. Ralph가 task graph를 auto-seed하고 계속 진행
 
-가장 먼저 확인해야 하는 파일은 아래 셋입니다.
+가장 먼저 확인해야 하는 파일은 아래 넷입니다.
 
+- `.codex-loop/prd/PRD.md`
 - `.codex-loop/preflight/REPORT.md`
 - `.codex-loop/context/handoff.md`
 - `.codex-loop/tasks.json`
 
-이 세 파일이 각각 환경 상태, 다음 행동, 작업 그래프를 보여줍니다.
+이 파일들이 각각 목표, 환경 상태, 다음 행동, 작업 그래프를 보여줍니다.
 
 ## 내부 처리 구조
 

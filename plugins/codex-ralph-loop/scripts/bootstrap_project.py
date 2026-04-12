@@ -109,10 +109,11 @@ def main() -> int:
     print(f"Initialized SummitHarness runtime in {target_root}")
     print("Next steps:")
     print("  1. Run python3 scripts/preflight.py run")
-    print("  2. Edit .codex-loop/prd/PRD.md and SUMMARY.md")
-    print("  3. Replace the sample tasks in .codex-loop/tasks.json")
+    print("  2. Edit .codex-loop/prd/PRD.md and SUMMARY.md with the real goal")
+    print("  3. Add real local build, lint, test, or screenshot commands in .codex-loop/config.json")
     print("  4. Use python3 scripts/context_engine.py refresh to build the first handoff packet")
     print("  5. Run ./ralph.sh --once or start /ralph-loop inside Codex")
+    print("     -> the first Ralph run will replace the bootstrap template tasks with a project-specific task graph")
     return 0
 
 

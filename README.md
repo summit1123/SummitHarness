@@ -66,6 +66,9 @@ python3 scripts/preflight.py run
 python3 scripts/context_engine.py refresh --source bootstrap
 ```
 
+처음 bootstrap 직후의 `.codex-loop/tasks.json`은 샘플 그래프입니다.
+실제 goal은 `.codex-loop/prd/PRD.md`, `.codex-loop/prd/SUMMARY.md`, `.codex-loop/config.json`에 적고, 첫 `./ralph.sh --once` 실행에서 Ralph가 이 템플릿 task를 프로젝트 전용 task graph로 자동 교체합니다.
+
 이제 프로젝트에는 아래가 생깁니다.
 
 - `.codex-loop/prd/`
@@ -85,16 +88,18 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 1. `SummitHarness`를 한 번 설치합니다.
 2. 작업할 저장소를 bootstrap합니다.
-3. PRD와 task를 채웁니다.
-4. preflight를 돌려 환경 문제를 먼저 봅니다.
-5. context engine이 현재 상태를 `handoff.md`로 압축합니다.
-6. 그 다음 외부 loop(`./ralph.sh`) 또는 same-session hook loop(`/ralph-loop`)를 돌립니다.
+3. `.codex-loop/prd/PRD.md`와 `SUMMARY.md`에 goal과 제약을 적습니다.
+4. `.codex-loop/config.json`에 실제 로컬 검증 명령을 넣습니다.
+5. preflight를 돌려 환경 문제를 먼저 봅니다.
+6. context engine이 현재 상태를 `handoff.md`로 압축합니다.
+7. 첫 `./ralph.sh` 또는 `/ralph-loop` 실행에서 Ralph가 goal 기반 task graph를 자동 생성한 뒤 바로 첫 실행을 시작합니다.
 
-사용자 입장에서 중요한 건 세 파일입니다.
+사용자 입장에서 중요한 건 네 파일입니다.
 
+- `.codex-loop/prd/PRD.md`: 무엇을 만들지
 - `.codex-loop/preflight/REPORT.md`: 지금 돌릴 수 있는 환경인지
 - `.codex-loop/context/handoff.md`: 지금 뭘 해야 하는지
-- `.codex-loop/tasks.json`: 실제 작업 순서가 어떻게 되는지
+- `.codex-loop/tasks.json`: Ralph가 현재 goal을 어떻게 작업 그래프로 해석했는지
 
 즉 사용자는 긴 로그를 다 읽지 않아도 되고, 하네스가 압축해둔 현재 packet만 보면 다음 행동을 이해할 수 있습니다.
 
@@ -117,7 +122,8 @@ python3 scripts/context_engine.py refresh --source bootstrap
 Use $ralph-bootstrap to initialize this repository for SummitHarness.
 Then run python3 scripts/preflight.py run.
 Then run python3 scripts/context_engine.py refresh --source bootstrap.
-After that, review the generated task breakdown with me before running the loop.
+Then update .codex-loop/prd/PRD.md, .codex-loop/prd/SUMMARY.md, and .codex-loop/config.json with the real goal and checks.
+After that, let the first Ralph run auto-generate the task graph from the PRD.
 ```
 
 slash command가 보이면 아래처럼 더 짧게도 갑니다.
@@ -169,6 +175,8 @@ Use $ralph-bootstrap to initialize this repository for SummitHarness.
 ```text
 Use $ralph-prd to turn these requirements into .codex-loop/prd/PRD.md and .codex-loop/tasks.json.
 ```
+
+직접 task graph를 먼저 잡고 싶을 때 쓰는 흐름이고, 비워두면 첫 Ralph run이 PRD를 바탕으로 자동 seed를 수행합니다.
 
 ### preflight와 context refresh
 

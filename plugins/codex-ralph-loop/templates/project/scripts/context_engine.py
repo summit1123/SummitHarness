@@ -19,6 +19,12 @@ DEFAULT_DURABLE = {
 }
 DEFAULT_OPEN_QUESTIONS = {"questions": [], "updatedAt": None}
 DEFAULT_ASSET_REGISTRY = {"assets": [], "updatedAt": None}
+DONE_STATUSES = {"done", "completed", "complete", "skipped"}
+DEFAULT_TEMPLATE_TASK_TITLES = {
+    "Brainstorm and lock the build brief",
+    "Write the first execution plan",
+    "Build and verify the first vertical slice",
+}
 
 
 def now_iso() -> str:
@@ -90,13 +96,30 @@ def ensure_context_layout(project_root: Path, state_dir: Path) -> None:
         write_json(registry_path, payload)
 
 
-def load_tasks(state_dir: Path) -> list[dict[str, Any]]:
+def load_tasks_index(state_dir: Path) -> dict[str, Any]:
     tasks_path = state_dir / "tasks.json"
     if not tasks_path.exists():
-        return []
+        return {}
     payload = json.loads(tasks_path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
+def load_tasks(state_dir: Path) -> list[dict[str, Any]]:
+    payload = load_tasks_index(state_dir)
     tasks = payload.get("tasks", [])
     return tasks if isinstance(tasks, list) else []
+
+
+def tasks_need_seed(tasks_index: dict[str, Any], tasks: list[dict[str, Any]]) -> bool:
+    if not tasks:
+        return True
+
+    if str(tasks_index.get("source", "")).strip().lower() == "bootstrap-template":
+        return True
+
+    project = str(tasks_index.get("project", "")).strip()
+    titles = {str(task.get("title", "")).strip() for task in tasks if str(task.get("title", "")).strip()}
+    return project == "Codex Ralph Loop Workspace" and titles == DEFAULT_TEMPLATE_TASK_TITLES
 
 
 def task_file_path(state_dir: Path, task: dict[str, Any]) -> Path:
@@ -212,9 +235,11 @@ def summarize_open_questions(state_dir: Path) -> list[str]:
     return lines
 
 
-def next_best_step(tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]], blockers: list[str]) -> str:
+def next_best_step(tasks_index: dict[str, Any], tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]], blockers: list[str]) -> str:
     if blockers:
         return "Resolve the preflight blockers before the next autonomous run."
+    if tasks_need_seed(tasks_index, tasks):
+        return "Tighten the PRD and local checks, then let the first Ralph run auto-generate the real task graph."
     for task in sorted(tasks, key=task_sort_key):
         if str(task.get("status", "")).lower() == "in_progress":
             return f"Continue task {task.get('id')} and keep task state accurate."
@@ -231,10 +256,12 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
     ensure_context_layout(project_root, state_dir)
     summary = read_text(state_dir / "prd" / "SUMMARY.md") or "No project summary yet."
     prompt = read_text(state_dir / "PROMPT.md")
+    tasks_index = load_tasks_index(state_dir)
     tasks = load_tasks(state_dir)
     specs = load_task_specs(state_dir, tasks)
-    open_tasks = [task for task in sorted(tasks, key=task_sort_key) if str(task.get("status", "")).lower() not in {"done", "skipped"}]
-    active_task = next((task for task in open_tasks if str(task.get("status", "")).lower() == "in_progress"), None)
+    seed_pending = tasks_need_seed(tasks_index, tasks)
+    open_tasks = [task for task in sorted(tasks, key=task_sort_key) if str(task.get("status", "")).lower() not in DONE_STATUSES]
+    active_task = None if seed_pending else next((task for task in open_tasks if str(task.get("status", "")).lower() == "in_progress"), None)
     latest_state = load_json(state_dir / "state.json", {})
     latest_hook = load_json(state_dir / "ralph-loop.json", {})
     blockers, warnings = summarize_preflight(state_dir)
@@ -243,7 +270,10 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
     assets = summarize_assets(state_dir)
     recent = summarize_recent_progress(state_dir)
 
-    open_task_lines = [task_status_line(task, specs.get(str(task.get("id")), {})) for task in open_tasks[:6]]
+    if seed_pending:
+        open_task_lines = ["- Bootstrap template is still active. The first Ralph run will replace it with a project-specific task graph."]
+    else:
+        open_task_lines = [task_status_line(task, specs.get(str(task.get("id")), {})) for task in open_tasks[:6]]
     active_task_line = (
         f"- {active_task.get('id')} {active_task.get('title')} ({active_task.get('status')})"
         if active_task
@@ -298,7 +328,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         "",
     ]
 
-    next_step = next_best_step(tasks, specs, blockers)
+    next_step = next_best_step(tasks_index, tasks, specs, blockers)
     handoff_lines = [
         "# Compressed Handoff",
         "",
@@ -330,7 +360,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         "updatedAt": now_iso(),
         "projectRoot": str(project_root),
         "activeTask": active_task,
-        "openTaskCount": len(open_tasks),
+        "openTaskCount": 0 if seed_pending else len(open_tasks),
         "nextBestStep": next_step,
         "preflightBlockers": blockers,
         "preflightWarnings": warnings,

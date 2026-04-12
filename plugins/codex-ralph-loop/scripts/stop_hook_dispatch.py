@@ -80,7 +80,7 @@ def all_tasks_complete(root: Path) -> bool:
     tasks = payload.get("tasks", [])
     if not isinstance(tasks, list) or not tasks:
         return False
-    return all(str(task.get("status", "")).lower() in {"done", "skipped"} for task in tasks)
+    return all(str(task.get("status", "")).lower() in {"done", "completed", "complete", "skipped"} for task in tasks)
 
 
 def build_continuation_prompt(state: dict[str, Any]) -> str:

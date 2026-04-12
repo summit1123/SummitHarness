@@ -29,7 +29,8 @@
   "loop": {
     "completion_promise": "COMPLETE",
     "max_iterations": 8,
-    "mode": "implementation"
+    "mode": "implementation",
+    "auto_seed_tasks": true
   },
   "checks": {
     "commands": [],

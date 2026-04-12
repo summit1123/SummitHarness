@@ -1,9 +1,9 @@
 {
   "id": "002",
-  "title": "Define the user flow and design direction",
+  "title": "Write the first execution plan",
   "status": "todo",
   "priority": "p0",
-  "summary": "Translate the PRD into an actual interaction model and visual direction before implementation sprawls.",
+  "summary": "Turn the brief into an executable plan with concrete slices and a clear design direction.",
   "dependsOn": [
     "001"
   ],
@@ -12,12 +12,12 @@
     ".codex-loop/tasks/TASK-002.json"
   ],
   "acceptance": [
-    "Primary user flow is written in order from entry to successful completion.",
-    "Design direction describes layout, tone, density, and interaction style.",
-    "Unknowns are reduced to a small list of explicit decisions."
+    "The next build slices are explicit and sequenced with real dependencies.",
+    "The primary user flow and visual direction are concrete enough to implement without generic AI styling.",
+    "Open questions are reduced to a small list of explicit decisions."
   ],
   "notes": [
-    "When the product needs UI, plan the empty, loading, error, and success states.",
-    "Keep the direction specific enough that the UI will not default to generic AI styling."
+    "Keep the plan short enough that the loop can actually execute it.",
+    "When UI matters, describe empty, loading, error, and success states."
   ]
 }
