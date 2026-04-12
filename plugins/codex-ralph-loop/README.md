@@ -65,6 +65,39 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `/summit-preflight`
 - `/summit-context-refresh`
 
+## 실제 사용자 흐름
+
+처음 쓰는 사용자는 보통 아래 순서로 씁니다.
+
+1. 플러그인 설치
+2. 대상 repo bootstrap
+3. preflight 실행
+4. context refresh
+5. PRD/task 확인
+6. `./ralph.sh` 또는 `/ralph-loop` 실행
+
+가장 먼저 확인해야 하는 파일은 아래 셋입니다.
+
+- `.codex-loop/preflight/REPORT.md`
+- `.codex-loop/context/handoff.md`
+- `.codex-loop/tasks.json`
+
+이 세 파일이 각각 환경 상태, 다음 행동, 작업 그래프를 보여줍니다.
+
+## 내부 처리 구조
+
+사용자가 명령을 치면 내부에서는 이렇게 진행됩니다.
+
+1. bootstrap이 runtime 파일을 repo 안에 복사
+2. preflight가 toolchain과 config 상태 점검
+3. context engine이 repo state를 압축
+4. loop runner가 handoff packet을 포함한 prompt로 worker 실행
+5. checks와 review gate 실행
+6. 로그와 state 저장
+7. 다음 iteration 전 handoff 재생성
+
+즉 사용자는 짧은 명령만 치지만, 하네스 내부에서는 `preflight -> compression -> execution -> evaluation -> refresh` 순환이 계속 일어납니다.
+
 ## 이 플러그인이 지향하는 것
 
 이 플러그인은 단순한 "반복 실행기"보다 더 큰 범위를 봅니다.

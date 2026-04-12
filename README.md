@@ -79,6 +79,83 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `scripts/asset_registry.py`
 - `ralph.sh`
 
+## 사용자는 어떻게 쓰나
+
+실제 사용 흐름은 아래처럼 이해하면 됩니다.
+
+1. `SummitHarness`를 한 번 설치합니다.
+2. 작업할 저장소를 bootstrap합니다.
+3. PRD와 task를 채웁니다.
+4. preflight를 돌려 환경 문제를 먼저 봅니다.
+5. context engine이 현재 상태를 `handoff.md`로 압축합니다.
+6. 그 다음 외부 loop(`./ralph.sh`) 또는 same-session hook loop(`/ralph-loop`)를 돌립니다.
+
+사용자 입장에서 중요한 건 세 파일입니다.
+
+- `.codex-loop/preflight/REPORT.md`: 지금 돌릴 수 있는 환경인지
+- `.codex-loop/context/handoff.md`: 지금 뭘 해야 하는지
+- `.codex-loop/tasks.json`: 실제 작업 순서가 어떻게 되는지
+
+즉 사용자는 긴 로그를 다 읽지 않아도 되고, 하네스가 압축해둔 현재 packet만 보면 다음 행동을 이해할 수 있습니다.
+
+## 사용자에게 어떻게 안내되나
+
+처음 쓰는 사람은 보통 아래 두 방식 중 하나로 시작합니다.
+
+### 1. 터미널 방식
+
+```bash
+python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
+python3 scripts/preflight.py run
+python3 scripts/context_engine.py refresh --source bootstrap
+./ralph.sh --once
+```
+
+### 2. Codex 프롬프트 방식
+
+```text
+Use $ralph-bootstrap to initialize this repository for SummitHarness.
+Then run python3 scripts/preflight.py run.
+Then run python3 scripts/context_engine.py refresh --source bootstrap.
+After that, review the generated task breakdown with me before running the loop.
+```
+
+slash command가 보이면 아래처럼 더 짧게도 갑니다.
+
+```text
+/init-codex-ralph
+/summit-preflight
+/summit-context-refresh
+/run-codex-ralph
+```
+
+## 내부에서는 어떻게 처리되나
+
+실제로는 아래 순서로 돌아갑니다.
+
+1. installer가 플러그인을 home-local Codex plugin으로 등록합니다.
+2. bootstrap이 현재 repo에 `.codex-loop/`, `scripts/`, `.codex/commands/`를 심습니다.
+3. preflight가 툴체인, hooks, config, media 관련 준비 상태를 검사합니다.
+4. context engine이 PRD, task, 최근 로그, 승인 자산을 읽고 `handoff.md`를 만듭니다.
+5. loop runner가 이 handoff packet을 포함한 prompt로 worker를 실행합니다.
+6. checks와 review gate가 실행되고 결과가 로그로 남습니다.
+7. 다음 iteration 전에는 다시 context engine이 repo 상태를 압축합니다.
+8. same-session hook loop라면 Stop hook이 `ralph-loop.json` 상태를 보고 continuation prompt를 다시 넣습니다.
+
+핵심은 raw transcript를 매번 다 넣지 않고, **repo state -> compressed handoff -> next iteration** 구조로 계속 이어진다는 점입니다.
+
+## 사용자가 중간에 보는 것
+
+loop가 도는 동안 사용자는 주로 아래를 봅니다.
+
+- `.codex-loop/context/handoff.md`: 다음 best step
+- `.codex-loop/logs/LOG.md`: iteration별 요약
+- `.codex-loop/reviews/`: read-only review 결과
+- `.codex-loop/history/`: worker 실행 로그
+- `.codex-loop/assets/registry.json`: 어떤 시각 자산이 승인됐는지
+
+즉 이 하네스는 "그냥 한 번 실행하고 기다리는 스크립트"가 아니라, **중간 상태를 계속 확인할 수 있는 작업판**에 가깝습니다.
+
 ## Codex에서 바로 넘기는 프롬프트
 
 ### bootstrap
@@ -136,6 +213,7 @@ Use $codex-ralph-loop to run the project-local SummitHarness loop from the curre
 ## 문서
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [User Flow](docs/USER_FLOW.md)
 - [Plugin README](plugins/codex-ralph-loop/README.md)
 
 ## 라이선스
