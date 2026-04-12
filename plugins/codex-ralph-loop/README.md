@@ -7,6 +7,7 @@
 - project-local PRD/task runtime
 - compressed context engine
 - preflight environment checks
+- submission PDF review gate
 - approved asset registry
 - deterministic checks + read-only review gate + goal evaluator
 - Stop-hook same-session loop
@@ -45,6 +46,7 @@ python3 scripts/install_home_local.py
 - `scripts/context_engine.py`
 - `scripts/preflight.py`
 - `scripts/asset_registry.py`
+- `scripts/review_submission_pdf.py`
 - `scripts/ralph_session.py`
 - `ralph.sh`
 
@@ -53,6 +55,7 @@ python3 scripts/install_home_local.py
 ```bash
 python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 python3 scripts/preflight.py run
+python3 scripts/review_submission_pdf.py path/to/proposal.pdf  # optional
 python3 scripts/context_engine.py refresh --source bootstrap
 ./ralph.sh --once
 ```
@@ -70,6 +73,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `/ralph-loop ...`
 - `/cancel-ralph`
 - `/summit-preflight`
+- `/summit-review-pdf`
 - `/summit-context-refresh`
 
 ## 실제 사용자 흐름
@@ -80,15 +84,17 @@ python3 scripts/context_engine.py refresh --source bootstrap
 2. 대상 repo bootstrap
 3. PRD/SUMMARY와 로컬 checks 설정
 4. preflight 실행
-5. context refresh
-6. 첫 `./ralph.sh` 또는 `/ralph-loop` 실행
-7. Ralph가 task graph를 auto-seed하고 계속 진행
-8. Goal evaluator가 매 iteration마다 실제 목표 충족 여부를 다시 판단
+5. 기획서/첨부 PDF가 있으면 PDF gate 실행
+6. context refresh
+7. 첫 `./ralph.sh` 또는 `/ralph-loop` 실행
+8. Ralph가 task graph를 auto-seed하고 계속 진행
+9. Goal evaluator가 매 iteration마다 실제 목표 충족 여부를 다시 판단
 
 가장 먼저 확인해야 하는 파일은 아래 다섯 가지입니다.
 
 - `.codex-loop/prd/PRD.md`
 - `.codex-loop/preflight/REPORT.md`
+- `.codex-loop/artifacts/pdf-review/`
 - `.codex-loop/context/handoff.md`
 - `.codex-loop/tasks.json`
 - `.codex-loop/evals/`
@@ -101,12 +107,13 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 1. bootstrap이 runtime 파일을 repo 안에 복사
 2. preflight가 toolchain과 config 상태 점검
-3. context engine이 repo state를 압축
-4. loop runner가 handoff packet을 포함한 prompt로 worker 실행
-5. checks, review gate, goal evaluator 실행
-6. 필요하면 replanning pass가 task graph를 보정
-7. 로그와 state 저장
-8. 다음 iteration 전 handoff 재생성
+3. 필요하면 submission PDF gate가 첨부파일 상태를 점검
+4. context engine이 repo state를 압축
+5. loop runner가 handoff packet을 포함한 prompt로 worker 실행
+6. checks, review gate, goal evaluator 실행
+7. 필요하면 replanning pass가 task graph를 보정
+8. 로그와 state 저장
+9. 다음 iteration 전 handoff 재생성
 
 즉 사용자는 짧은 명령만 치지만, 하네스 내부에서는 `preflight -> compression -> execution -> evaluation -> refresh` 순환이 계속 일어납니다.
 

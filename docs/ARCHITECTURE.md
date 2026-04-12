@@ -10,6 +10,7 @@ SummitHarness는 Codex용 오픈소스 제품 하네스다.
 - PRD / task decomposition
 - compressed context handoff
 - preflight validation
+- submission pdf gate
 - visual asset pipeline
 - implementation loop
 - evaluator gates
@@ -29,6 +30,8 @@ SummitHarness는 Codex용 오픈소스 제품 하네스다.
 │   └── events.jsonl
 ├── assets/
 │   └── registry.json
+├── artifacts/
+│   └── pdf-review/
 ├── preflight/
 │   ├── status.json
 │   └── REPORT.md
@@ -76,7 +79,21 @@ repo 상태에서 다음 iteration용 packet을 만든다.
 
 이 registry는 구현 단계가 "현재 승인된 시각 방향"을 잊지 않게 한다.
 
-### 4. Implementation Loop
+### 4. Submission PDF Gate
+
+`python3 scripts/review_submission_pdf.py path/to/proposal.pdf`
+
+계획서나 제출용 첨부 PDF를 한 번 더 점검한다.
+
+- `.pdf` 확장자 확인
+- 파일명 쉼표 여부 확인
+- 업로드 용량 제한 확인
+- `pdfinfo`, `pdftotext` 기반 메타데이터/미리보기 추출
+- 결과를 `.codex-loop/artifacts/pdf-review/`에 저장
+
+이 gate는 "문서는 그럴듯한데 실제 제출물은 아직 틀린 상태"를 loop 바깥에서 먼저 잡아준다.
+
+### 5. Implementation Loop
 
 `./ralph.sh` / `./ralph.sh --once`
 
@@ -90,7 +107,7 @@ repo 상태에서 다음 iteration용 packet을 만든다.
 
 현재 이 repo는 첫 runnable loop slice를 검증하는 중이므로, task graph와 handoff가 실제 state와 일치하는지 확인하는 것이 우선이다.
 
-### 5. Stop-hook Loop
+### 6. Stop-hook Loop
 
 `/ralph-loop ...`
 
@@ -138,6 +155,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 - `preflight/REPORT.md`
 - `context/handoff.md`
+- `artifacts/pdf-review/`
 - `logs/LOG.md`
 - `reviews/`
 - `assets/registry.json`

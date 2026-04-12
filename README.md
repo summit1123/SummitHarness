@@ -7,6 +7,7 @@
 - PRD와 task 기반 구현 루프
 - 압축 컨텍스트 엔진
 - preflight 환경 점검
+- 제출용 PDF 검토 게이트
 - 디자인/자산 파이프라인
 - review gate, goal evaluator, deterministic checks
 - Stop-hook 기반 same-session loop
@@ -63,6 +64,7 @@ python3 install.py
 ```bash
 python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 python3 scripts/preflight.py run
+python3 scripts/review_submission_pdf.py path/to/proposal.pdf  # 선택
 python3 scripts/context_engine.py refresh --source bootstrap
 ```
 
@@ -82,6 +84,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `scripts/context_engine.py`
 - `scripts/preflight.py`
 - `scripts/asset_registry.py`
+- `scripts/review_submission_pdf.py`
 - `ralph.sh`
 
 ## 사용자는 어떻게 쓰나
@@ -93,14 +96,16 @@ python3 scripts/context_engine.py refresh --source bootstrap
 3. `.codex-loop/prd/PRD.md`와 `SUMMARY.md`에 goal과 제약을 적습니다.
 4. `.codex-loop/config.json`에 실제 로컬 검증 명령을 넣습니다.
 5. preflight를 돌려 환경 문제를 먼저 봅니다.
-6. context engine이 현재 상태를 `handoff.md`로 압축합니다.
-7. 첫 `./ralph.sh` 또는 `/ralph-loop` 실행에서 Ralph가 goal 기반 task graph를 자동 생성한 뒤 바로 첫 실행을 시작합니다.
-8. 이후 각 iteration마다 goal evaluator가 실제 목표 달성 여부를 다시 심판하고, 필요하면 task graph를 자동 보정합니다.
+6. 기획서/첨부 PDF가 있으면 `scripts/review_submission_pdf.py`로 한 번 더 검토합니다.
+7. context engine이 현재 상태를 `handoff.md`로 압축합니다.
+8. 첫 `./ralph.sh` 또는 `/ralph-loop` 실행에서 Ralph가 goal 기반 task graph를 자동 생성한 뒤 바로 첫 실행을 시작합니다.
+9. 이후 각 iteration마다 goal evaluator가 실제 목표 달성 여부를 다시 심판하고, 필요하면 task graph를 자동 보정합니다.
 
 사용자 입장에서 중요한 건 다섯 파일입니다.
 
 - `.codex-loop/prd/PRD.md`: 무엇을 만들지
 - `.codex-loop/preflight/REPORT.md`: 지금 돌릴 수 있는 환경인지
+- `.codex-loop/artifacts/pdf-review/`: 제출용 PDF가 실제 조건을 통과하는지
 - `.codex-loop/context/handoff.md`: 지금 뭘 해야 하는지
 - `.codex-loop/tasks.json`: Ralph가 현재 goal을 어떻게 작업 그래프로 해석했는지
 - `.codex-loop/evals/`: 목표 달성 여부와 plan drift를 어떻게 판정했는지
@@ -118,6 +123,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 ```bash
 python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 python3 scripts/preflight.py run
+python3 scripts/review_submission_pdf.py path/to/proposal.pdf   # optional
 python3 scripts/context_engine.py refresh --source bootstrap
 ./ralph.sh --once
 ```
@@ -139,6 +145,7 @@ slash command가 보이면 아래처럼 더 짧게도 갑니다.
 /summit-brainstorm
 /summit-write-plan
 /summit-preflight
+/summit-review-pdf
 /summit-context-refresh
 /run-codex-ralph
 ```
@@ -168,6 +175,7 @@ loop가 도는 동안 사용자는 주로 아래를 봅니다.
 - `.codex-loop/reviews/`: read-only review 결과
 - `.codex-loop/evals/`: goal evaluator 결과
 - `.codex-loop/history/`: worker 실행 로그
+- `.codex-loop/artifacts/pdf-review/`: 최신 제출용 PDF 점검 결과
 - `.codex-loop/assets/registry.json`: 어떤 시각 자산이 승인됐는지
 
 즉 이 하네스는 "그냥 한 번 실행하고 기다리는 스크립트"가 아니라, **중간 상태를 계속 확인할 수 있는 작업판**에 가깝습니다.
@@ -192,6 +200,12 @@ Use $ralph-prd to turn these requirements into .codex-loop/prd/PRD.md and .codex
 
 ```text
 Run python3 scripts/preflight.py run and then python3 scripts/context_engine.py refresh --source manual.
+```
+
+### 제출용 PDF 점검
+
+```text
+Run python3 scripts/review_submission_pdf.py path/to/proposal.pdf, read the report in .codex-loop/artifacts/pdf-review/, then refresh context if the PDF is now truthful.
 ```
 
 ### loop 실행

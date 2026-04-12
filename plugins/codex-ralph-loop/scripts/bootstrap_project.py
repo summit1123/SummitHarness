@@ -81,6 +81,7 @@ def main() -> int:
         "context_engine.py",
         "preflight.py",
         "asset_registry.py",
+        "review_submission_pdf.py",
     ]:
         copy_file(template_root / "scripts" / name, target_root / "scripts" / name, args.force)
 
@@ -94,6 +95,7 @@ def main() -> int:
         "scripts/context_engine.py",
         "scripts/preflight.py",
         "scripts/asset_registry.py",
+        "scripts/review_submission_pdf.py",
         ".codex/hooks/ralph_stop.py",
     ]:
         target = target_root / rel
@@ -112,9 +114,10 @@ def main() -> int:
     print("Next steps:")
     print("  1. Run python3 scripts/preflight.py run")
     print("  2. Edit .codex-loop/prd/PRD.md and SUMMARY.md with the real goal")
-    print("  3. Add real local build, lint, test, or screenshot commands in .codex-loop/config.json")
-    print("  4. Use python3 scripts/context_engine.py refresh to build the first handoff packet")
-    print("  5. Run ./ralph.sh --once or start /ralph-loop inside Codex")
+    print("  3. If you already have a planning or submission PDF, run python3 scripts/review_submission_pdf.py path/to/file.pdf")
+    print("  4. Add real local build, lint, test, or screenshot commands in .codex-loop/config.json")
+    print("  5. Use python3 scripts/context_engine.py refresh to build the first handoff packet")
+    print("  6. Run ./ralph.sh --once or start /ralph-loop inside Codex")
     print("     -> the first Ralph run will replace the bootstrap template tasks with a project-specific task graph")
     return 0
 

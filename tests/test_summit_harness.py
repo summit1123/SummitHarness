@@ -16,6 +16,7 @@ BOOTSTRAP = REPO_ROOT / "plugins" / "codex-ralph-loop" / "scripts" / "bootstrap_
 STOP_DISPATCH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "scripts" / "stop_hook_dispatch.py"
 CODEX_RALPH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "codex_ralph.py"
 CONTEXT_ENGINE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "context_engine.py"
+REVIEW_PDF = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "review_submission_pdf.py"
 INSTALLER = REPO_ROOT / "plugins" / "codex-ralph-loop" / "scripts" / "install_home_local.py"
 PLUGIN_COMMANDS_DIR = REPO_ROOT / "plugins" / "codex-ralph-loop" / "commands"
 
@@ -40,6 +41,7 @@ class SummitHarnessTests(unittest.TestCase):
             subprocess.run([sys.executable, str(BOOTSTRAP), "--force", str(root)], check=True)
             self.assertTrue(marker.exists())
             self.assertTrue((root / "scripts" / "context_engine.py").exists())
+            self.assertTrue((root / "scripts" / "review_submission_pdf.py").exists())
             self.assertTrue((root / ".codex-loop" / "context" / "durable.json").exists())
             self.assertTrue((root / ".codex-loop" / "evals" / ".gitkeep").exists())
 
@@ -213,6 +215,70 @@ NEXT: Add tests.
             ],
         }
         self.assertFalse(mod.tasks_need_seed(custom_index, custom_index["tasks"]))
+
+    def test_submission_pdf_review_writes_report_and_flags_bad_filename(self) -> None:
+        mod = load_module(REVIEW_PDF, "review_submission_pdf_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            pdf_path = root / "proposal,draft.pdf"
+            pdf_path.write_bytes(b"%PDF-1.4\n%stub\n")
+
+            with mock.patch.object(
+                mod,
+                "probe_pdf",
+                return_value={
+                    "available": True,
+                    "method": "pdfinfo",
+                    "pages": 8,
+                    "pageSize": "596 x 843 pts",
+                    "pdfVersion": "1.4",
+                },
+            ):
+                with mock.patch.object(
+                    mod,
+                    "extract_preview_text",
+                    return_value={
+                        "available": True,
+                        "method": "pdftotext",
+                        "preview": "Contest preview text",
+                        "charCount": 20,
+                        "error": None,
+                    },
+                ):
+                    review = mod.build_review(root, pdf_path, 20.0)
+                    json_path, md_path = mod.write_review_files(root, review)
+
+            self.assertTrue(any("comma" in item.lower() for item in review["blockers"]))
+            self.assertEqual(review["metadata"]["pages"], 8)
+            self.assertEqual(review["extraction"]["preview"], "Contest preview text")
+            self.assertTrue(json_path.exists())
+            self.assertTrue(md_path.exists())
+
+    def test_context_engine_surfaces_latest_submission_pdf_review(self) -> None:
+        mod = load_module(CONTEXT_ENGINE, "context_engine_pdf_review_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            review_dir = root / ".codex-loop" / "artifacts" / "pdf-review"
+            review_dir.mkdir(parents=True, exist_ok=True)
+            (review_dir / "proposal-review.json").write_text(
+                json.dumps(
+                    {
+                        "file": {"name": "proposal.pdf", "sizeMegabytes": 0.4},
+                        "metadata": {"pages": 8},
+                        "blockers": ["Rename the file."],
+                        "warnings": [],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            status = mod.load_status(root, root / ".codex-loop")
+            self.assertIn("proposal.pdf", status["handoff"])
+            self.assertIn("submission pdf blockers", status["nextBestStep"].lower())
 
     def test_loop_can_replan_after_goal_evaluator_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -652,6 +718,7 @@ if __name__ == "__main__":
             "ralph-loop.md",
             "cancel-ralph.md",
             "summit-preflight.md",
+            "summit-review-pdf.md",
             "summit-context-refresh.md",
             "summit-brainstorm.md",
             "summit-write-plan.md",

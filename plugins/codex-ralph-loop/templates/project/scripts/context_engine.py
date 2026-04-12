@@ -249,6 +249,43 @@ def summarize_assets(state_dir: Path) -> list[str]:
     return lines
 
 
+def latest_pdf_review(state_dir: Path) -> dict[str, Any]:
+    review_dir = state_dir / "artifacts" / "pdf-review"
+    if not review_dir.exists():
+        return {}
+    candidates = sorted(review_dir.glob("*-review.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+    for path in candidates:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            payload["_reviewPath"] = str(path)
+            return payload
+    return {}
+
+
+def summarize_pdf_review(state_dir: Path) -> tuple[list[str], list[str]]:
+    payload = latest_pdf_review(state_dir)
+    if not payload:
+        return [], []
+
+    info = payload.get("file", {}) if isinstance(payload.get("file"), dict) else {}
+    metadata = payload.get("metadata", {}) if isinstance(payload.get("metadata"), dict) else {}
+    blockers = payload.get("blockers", [])
+    warnings = payload.get("warnings", [])
+    lines = [
+        f"- Latest review: {info.get('name', 'unknown')} ({info.get('sizeMegabytes', 'n/a')} MB, {metadata.get('pages', 'unknown')} pages)",
+        f"- Submission blockers: {len(blockers) if isinstance(blockers, list) else 0}",
+        f"- Submission warnings: {len(warnings) if isinstance(warnings, list) else 0}",
+    ]
+    if isinstance(blockers, list) and blockers:
+        lines.append(f"- Top blocker: {blockers[0]}")
+    elif isinstance(warnings, list) and warnings:
+        lines.append(f"- Top warning: {warnings[0]}")
+    return lines, blockers if isinstance(blockers, list) else []
+
+
 def summarize_preflight(state_dir: Path) -> tuple[list[str], list[str]]:
     status = load_json(state_dir / "preflight" / "status.json", {})
     blockers = status.get("blockers", []) if isinstance(status, dict) else []
@@ -281,9 +318,17 @@ def summarize_open_questions(state_dir: Path) -> list[str]:
     return lines
 
 
-def next_best_step(tasks_index: dict[str, Any], tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]], blockers: list[str]) -> str:
+def next_best_step(
+    tasks_index: dict[str, Any],
+    tasks: list[dict[str, Any]],
+    specs: dict[str, dict[str, Any]],
+    blockers: list[str],
+    submission_blockers: list[str] | None = None,
+) -> str:
     if blockers:
         return "Resolve the preflight blockers before the next autonomous run."
+    if submission_blockers:
+        return "Resolve the submission PDF blockers and regenerate the attachment before declaring the goal complete."
     if tasks_need_seed(tasks_index, tasks):
         return "Tighten the PRD and local checks, then let the first Ralph run auto-generate the real task graph."
     for task in sorted(tasks, key=task_sort_key):
@@ -314,6 +359,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
     durable = summarize_durable(state_dir)
     questions = summarize_open_questions(state_dir)
     assets = summarize_assets(state_dir)
+    pdf_review_lines, pdf_blockers = summarize_pdf_review(state_dir)
     recent = summarize_recent_progress(state_dir)
 
     if seed_pending:
@@ -358,6 +404,9 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         "## Approved Assets",
         *(assets or ["- No approved assets registered yet."]),
         "",
+        "## Submission PDF Gate",
+        *(pdf_review_lines or ["- No submission PDF review captured yet."]),
+        "",
         "## Recent Progress",
         *(recent or ["- No recent loop log entries yet."]),
         "",
@@ -375,7 +424,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         "",
     ]
 
-    next_step = next_best_step(tasks_index, tasks, specs, blockers)
+    next_step = next_best_step(tasks_index, tasks, specs, blockers, pdf_blockers)
     handoff_lines = [
         "# Compressed Handoff",
         "",
@@ -392,6 +441,9 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         "",
         "## Visual Direction",
         *(durable["style"][:4] or ["- No approved visual system yet. Generate or import one before polishing code-only UI."]),
+        "",
+        "## Submission Gate",
+        *(pdf_review_lines[:4] or ["- No submission PDF review captured yet."]),
         "",
         "## Open Tasks",
         *(open_task_lines[:4] or ["- No open tasks remain."]),
@@ -413,6 +465,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         "preflightBlockers": blockers,
         "preflightWarnings": warnings,
         "approvedAssets": assets,
+        "submissionPdf": pdf_review_lines,
         "evalSummary": latest_state.get("evalSummary", "not run"),
     }
     return "\n".join(current_state_lines).rstrip() + "\n", "\n".join(handoff_lines).rstrip() + "\n", payload
@@ -458,8 +511,7 @@ def remember_item(project_root: Path, state_dir: Path, kind: str, text: str) -> 
 
 def load_status(project_root: Path, state_dir: Path) -> dict[str, Any]:
     ensure_context_layout(project_root, state_dir)
-    handoff = read_text(context_dir_from(state_dir) / "handoff.md")
-    payload = build_context_markdown(project_root, state_dir)[2]
+    _, handoff, payload = build_context_markdown(project_root, state_dir)
     payload["handoff"] = handoff
     return payload
 

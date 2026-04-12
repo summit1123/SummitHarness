@@ -2,7 +2,7 @@
 
 ## 한 줄 요약
 
-사용자는 짧은 명령만 실행하고, 하네스는 내부에서 환경 점검, 컨텍스트 압축, loop 실행, 평가, handoff 갱신을 반복합니다.
+사용자는 짧은 명령만 실행하고, 하네스는 내부에서 환경 점검, 제출용 PDF 검토, 컨텍스트 압축, loop 실행, 평가, handoff 갱신을 반복합니다.
 
 현재 이 저장소는 첫 runnable loop slice를 검증하는 단계이므로, `current-state.md`와 `handoff.md`가 같은 상태를 말하는지 함께 확인해야 합니다.
 
@@ -44,6 +44,7 @@ python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 - `scripts/context_engine.py` 생성
 - `scripts/preflight.py` 생성
 - `scripts/asset_registry.py` 생성
+- `scripts/review_submission_pdf.py` 생성
 - `scripts/ralph_session.py` 생성
 - `.codex/commands/`와 hook script 생성
 - `.gitignore`에 runtime ignore 추가
@@ -93,7 +94,27 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 - 긴 로그를 다 읽지 않고도 `handoff.md`만 보면 다음 행동을 이해할 수 있음
 
-## 5. 실제 loop 실행
+## 5. 제출용 PDF 점검
+
+사용자:
+
+```bash
+python3 scripts/review_submission_pdf.py path/to/proposal.pdf
+```
+
+내부 처리:
+
+- 파일 형식, 용량, 파일명 제약 점검
+- 가능하면 `pdfinfo`, `pdftotext`로 메타데이터와 텍스트 preview 추출
+- 결과를 `.codex-loop/artifacts/pdf-review/*.json`, `*.md`에 저장
+- 다음 Ralph run 전에 고쳐야 할 blocker/warning 정리
+
+사용자 체감:
+
+- 제출 첨부파일이 조건을 어기는지 바로 알 수 있음
+- PDF 내용이 현재 PRD/요약과 어긋나면 loop를 다시 돌리기 전에 잡을 수 있음
+
+## 6. 실제 loop 실행
 
 ### 외부 worker loop
 
@@ -128,9 +149,10 @@ python3 scripts/context_engine.py refresh --source bootstrap
 4. 완료 아니면 continuation prompt를 다시 넣음
 5. context refresh도 같이 수행
 
-## 6. 사용자가 보는 주요 파일
+## 7. 사용자가 보는 주요 파일
 
 - `.codex-loop/preflight/REPORT.md`: 환경 상태
+- `.codex-loop/artifacts/pdf-review/`: 제출용 PDF 점검 결과
 - `.codex-loop/context/handoff.md`: 다음 best step
 - `.codex-loop/context/current-state.md`: handoff 근거가 되는 최신 상태
 - `.codex-loop/tasks.json`: 현재 작업 그래프
@@ -138,7 +160,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `.codex-loop/reviews/`: 리뷰 게이트 결과
 - `.codex-loop/assets/registry.json`: 승인된 시각 자산 목록
 
-## 7. 디자인/자산 흐름
+## 8. 디자인/자산 흐름
 
 사용자는 필요할 때 이미지/영상/Figma 자산을 생성하거나 가져온 뒤 registry에 기록할 수 있습니다.
 
@@ -150,7 +172,7 @@ python3 scripts/asset_registry.py add   --kind image   --path assets/hero-v1.png
 
 그 다음 context refresh를 하면, 다음 iteration부터는 그 자산이 handoff packet에 반영됩니다.
 
-## 8. 이 구조의 핵심
+## 9. 이 구조의 핵심
 
 SummitHarness는 transcript를 계속 길게 먹이는 방식이 아니라:
 
