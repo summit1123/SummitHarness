@@ -158,19 +158,42 @@ class SummitHarnessTests(unittest.TestCase):
 STATUS: COMPLETE
 SUMMARY: Goal is satisfied.
 NEXT: Ship it.
+REPLAN: NO
 """)
         self.assertTrue(passed["passed"])
         self.assertEqual(passed["status"], "COMPLETE")
         self.assertEqual(passed["summary"], "Goal is satisfied.")
+        self.assertFalse(passed["replan"])
 
         failed = mod.parse_evaluator_result("""RESULT: FAIL
 STATUS: INCOMPLETE
 SUMMARY: Missing tests.
 NEXT: Add tests.
+REPLAN: YES
 """)
         self.assertFalse(failed["passed"])
         self.assertEqual(failed["status"], "INCOMPLETE")
         self.assertEqual(failed["next"], "Add tests.")
+        self.assertTrue(failed["replan"])
+
+    def test_should_auto_extend_tasks_when_evaluator_detects_task_graph_drift(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_replan_test")
+        config = {
+            "evaluator": {
+                "enabled": True,
+                "auto_extend_tasks": True,
+            }
+        }
+        tasks = [
+            {"id": "005", "status": "done", "priority": "p0", "title": "Why now"},
+            {"id": "006", "status": "in_progress", "priority": "p0", "title": "Structure"},
+        ]
+        evaluation = {
+            "passed": False,
+            "status": "INCOMPLETE",
+            "replan": True,
+        }
+        self.assertTrue(mod.should_auto_extend_tasks(tasks, evaluation, config))
 
     def test_select_task_accepts_pending_status_as_next_work(self) -> None:
         mod = load_module(CODEX_RALPH, "codex_ralph_pending_test")

@@ -30,7 +30,8 @@
     "completion_promise": "COMPLETE",
     "max_iterations": 8,
     "mode": "implementation",
-    "auto_seed_tasks": true
+    "auto_seed_tasks": true,
+    "quality_profile": "development"
   },
   "checks": {
     "commands": [],

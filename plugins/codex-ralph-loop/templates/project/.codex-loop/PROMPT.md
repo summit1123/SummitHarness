@@ -26,3 +26,6 @@ When backend or AI work is involved:
 - handle failure states
 - record assumptions in the task spec or PRD
 - do not silently invent critical business rules
+
+- read `.codex-loop/QUALITY_BARS.md` and treat the active quality profile as a hard completion gate
+- do not declare completion until every MUST item in the active quality profile is satisfied

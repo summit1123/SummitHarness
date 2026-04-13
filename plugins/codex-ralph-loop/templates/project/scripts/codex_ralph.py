@@ -111,6 +111,25 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def active_quality_profile(config: dict[str, Any]) -> str:
+    explicit = str(config.get("loop", {}).get("quality_profile", "")).strip().lower()
+    if explicit:
+        return explicit
+
+    mode = str(config.get("loop", {}).get("mode", "implementation")).strip().lower()
+    if mode in {"proposal", "planning", "submission", "prd"}:
+        return "proposal"
+    return "development"
+
+
+def load_quality_bars(state_dir: Path) -> str:
+    return (
+        read_text(state_dir / "QUALITY_BARS.md")
+        or read_text(state_dir / "QUALITY_BAR.md")
+        or "No quality bars were defined."
+    )
+
+
 def write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
@@ -358,6 +377,8 @@ def parse_evaluator_result(text: str) -> dict[str, Any]:
     status_match = EVAL_STATUS_RE.search(text or "")
     summary = prefixed_value(text, "SUMMARY") or first_nonempty_line(text) or "Evaluator did not provide a summary."
     next_step = prefixed_value(text, "NEXT") or summary
+    replan_value = prefixed_value(text, "REPLAN").upper()
+    replan = replan_value in {"YES", "TRUE", "REPLAN"}
 
     if not result_match:
         return {
@@ -365,6 +386,7 @@ def parse_evaluator_result(text: str) -> dict[str, Any]:
             "status": "INCOMPLETE",
             "summary": "Evaluator did not emit RESULT: PASS or RESULT: FAIL.",
             "next": "Inspect the evaluator prompt or eval log.",
+            "replan": False,
             "raw": text,
         }
 
@@ -375,18 +397,20 @@ def parse_evaluator_result(text: str) -> dict[str, Any]:
         "status": status,
         "summary": summary,
         "next": next_step,
+        "replan": replan,
         "raw": text,
     }
 
 
 def should_auto_extend_tasks(tasks: list[dict[str, Any]], evaluation: dict[str, Any], config: dict[str, Any]) -> bool:
     evaluator_cfg = config.get("evaluator", {})
+    status = str(evaluation.get("status", "INCOMPLETE")).upper()
     return (
         bool(evaluator_cfg.get("enabled", True))
         and bool(evaluator_cfg.get("auto_extend_tasks", True))
-        and all_tasks_complete(tasks)
         and not bool(evaluation.get("passed"))
-        and str(evaluation.get("status", "INCOMPLETE")).upper() == "INCOMPLETE"
+        and status == "INCOMPLETE"
+        and (all_tasks_complete(tasks) or bool(evaluation.get("replan")))
     )
 
 
@@ -500,6 +524,8 @@ def build_worker_prompt(
         if git_available
         else "Git is not available. Work directly in the workspace and keep task state files accurate."
     )
+    quality_profile_name = active_quality_profile(config)
+    quality_bars = load_quality_bars(state_dir)
 
     return f"""You are inside a long-running SummitHarness Codex loop.
 
@@ -526,6 +552,12 @@ Base prompt:
 
 Project summary:
 {summary_md}
+
+Active quality profile:
+{quality_profile_name}
+
+Quality bars:
+{quality_bars}
 
 Active task index entry:
 ```json
@@ -554,6 +586,8 @@ def build_review_prompt(
     handoff_md = read_text(state_dir / "context" / "handoff.md")
     task_index = json.dumps(task, ensure_ascii=False, indent=2) if task else "{}"
     task_spec = json.dumps(task_body or {}, ensure_ascii=False, indent=2)
+    quality_profile_name = active_quality_profile(config)
+    quality_bars = load_quality_bars(state_dir)
 
     return f"""You are the review gate for a SummitHarness Codex loop. Work read-only.
 
@@ -563,6 +597,7 @@ Review focus:
 - unmet acceptance criteria
 - missing tests for changed behavior
 - design or UX mismatches only when they materially violate the task
+- violations of the active quality profile
 
 Ignore style-only nits.
 Keep the review short and severe-only.
@@ -573,6 +608,12 @@ Compressed context packet:
 
 Project summary:
 {summary_md}
+
+Active quality profile:
+{quality_profile_name}
+
+Quality bars:
+{quality_bars}
 
 Active task index entry:
 ```json
@@ -613,6 +654,8 @@ def build_goal_eval_prompt(
     task_graph = json.dumps(tasks_index, ensure_ascii=False, indent=2)
     task_index = json.dumps(task, ensure_ascii=False, indent=2) if task else "{}"
     task_spec = json.dumps(task_body or {}, ensure_ascii=False, indent=2)
+    quality_profile_name = active_quality_profile(config)
+    quality_bars = load_quality_bars(state_dir)
 
     return f"""You are the goal evaluator for a SummitHarness Codex loop. Work read-only.
 
@@ -622,12 +665,19 @@ Focus on:
 - missing deliverables or weak evidence
 - task graph drift, where remaining work is not represented in the plan
 - false completion claims
+- violations of the active quality profile
 
 Project summary:
 {summary_md}
 
 Current PRD:
 {prd_md}
+
+Active quality profile:
+{quality_profile_name}
+
+Quality bars:
+{quality_bars}
 
 Compressed context packet:
 {handoff_md}
@@ -658,12 +708,15 @@ RESULT: PASS or FAIL
 STATUS: COMPLETE or INCOMPLETE or BLOCKED or DECIDE
 SUMMARY: one sentence
 NEXT: one sentence
+REPLAN: YES or NO
 MISSING:
 - none
 
 Rules:
-- PASS only when the repo is genuinely in a shippable state for the current goal.
-- FAIL if work remains, evidence is weak, or the task graph no longer covers the goal.
+- PASS only when the repo is genuinely in a shippable state for the current goal and satisfies the active quality profile.
+- FAIL if work remains, evidence is weak, the task graph no longer covers the goal, or the active quality profile is not met.
+- Use REPLAN: YES when the current task graph no longer represents the remaining work, task state is stale, or new tasks/reordering/reopening is needed before trustworthy progress can continue.
+- Use REPLAN: NO when the current open tasks already represent the remaining work well enough.
 - Use BLOCKED only when a real external blocker prevents trustworthy progress.
 - Use DECIDE only when a real human product decision is required.
 """
