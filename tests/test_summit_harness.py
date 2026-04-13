@@ -770,6 +770,18 @@ if __name__ == "__main__":
         next_step = mod.next_best_step(tasks_index, tasks, specs, blockers=[])
         self.assertEqual(next_step, "Check whether task 005 is now unblocked by 004.")
 
+    def test_context_engine_next_best_step_reports_completion_when_goal_eval_passed(self) -> None:
+        mod = load_module(CONTEXT_ENGINE, "context_engine_complete_next_step_test")
+        tasks_index = {"source": "manual"}
+        tasks = [{"id": "007", "title": "Refresh final proof", "status": "done", "priority": "p0"}]
+        specs = {"007": {"dependsOn": []}}
+        latest_state = {"evalPassed": True, "evalStatus": "COMPLETE"}
+        next_step = mod.next_best_step(tasks_index, tasks, specs, blockers=[], latest_state=latest_state)
+        self.assertEqual(
+            next_step,
+            "Goal is complete. Archive this package or branch a derivative deliverable such as a submission-form short version or 발표용 one-pager.",
+        )
+
     def test_context_engine_recent_progress_prefers_summary_line(self) -> None:
         mod = load_module(CONTEXT_ENGINE, "context_engine_recent_summary_test")
         with tempfile.TemporaryDirectory() as tmp:

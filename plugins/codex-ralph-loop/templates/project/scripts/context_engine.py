@@ -324,11 +324,20 @@ def next_best_step(
     specs: dict[str, dict[str, Any]],
     blockers: list[str],
     submission_blockers: list[str] | None = None,
+    latest_state: dict[str, Any] | None = None,
 ) -> str:
+    state = latest_state or {}
     if blockers:
         return "Resolve the preflight blockers before the next autonomous run."
     if submission_blockers:
         return "Resolve the submission PDF blockers and regenerate the attachment before declaring the goal complete."
+    if (
+        tasks
+        and all(str(task.get("status", "")).lower() in DONE_STATUSES for task in tasks)
+        and bool(state.get("evalPassed"))
+        and str(state.get("evalStatus", "")).upper() == "COMPLETE"
+    ):
+        return "Goal is complete. Archive this package or branch a derivative deliverable such as a submission-form short version or 발표용 one-pager."
     if tasks_need_seed(tasks_index, tasks):
         return "Tighten the PRD and local checks, then let the first Ralph run auto-generate the real task graph."
     for task in sorted(tasks, key=task_sort_key):
@@ -424,7 +433,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         "",
     ]
 
-    next_step = next_best_step(tasks_index, tasks, specs, blockers, pdf_blockers)
+    next_step = next_best_step(tasks_index, tasks, specs, blockers, pdf_blockers, latest_state)
     handoff_lines = [
         "# Compressed Handoff",
         "",
