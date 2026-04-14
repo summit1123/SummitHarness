@@ -106,6 +106,7 @@ Use this when the goal is screen design, interaction flow, or polished front-end
 2. Visual system
 - The design contract is specific about spacing, hierarchy, assets, banned patterns, and the selected reference pack.
 - The UI does not look like generic AI output.
+- Fail common generic patterns early: nested cards, ornamental gradients, weak contrast, and decorative chrome without workflow value.
 
 3. Asset grounding
 - Use approved assets, screenshots, references, or generated inputs intentionally.

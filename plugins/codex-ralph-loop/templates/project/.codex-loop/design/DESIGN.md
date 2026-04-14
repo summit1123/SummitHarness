@@ -11,6 +11,12 @@ This file is the design source of truth for the current workspace.
 - Use `product-ops` for actual software UI, dashboards, and agent control surfaces.
 - Use `Reference-Pack` to point Ralph at a reusable visual family before you start polishing.
 
+## Why This Exists
+
+Without an explicit design contract, autonomous loops tend to converge on the same weak defaults: nested cards, decorative accents, vague hierarchy, and product screens that look like AI-generated scaffolding rather than something a team would ship.
+
+The design contract exists to stop that drift early.
+
 ## Current Direction
 
 - Write for the real reviewer, buyer, or operator.
@@ -24,6 +30,7 @@ This file is the design source of truth for the current workspace.
 - Name 1-3 references that fit this project and why they fit.
 - Keep them specific: screen type, layout rhythm, tone, or evidence pattern.
 - Approved screenshots, figma links, and generated assets should be registered in `.codex-loop/assets/registry.json`.
+- If one of the built-in packs is close, copy it into the project-local `reference-packs/` folder and tune it there.
 
 ## Project-Specific Rules
 
@@ -38,3 +45,4 @@ This file is the design source of truth for the current workspace.
 - assistant-style narration
 - screenshots without reviewer value
 - fake product metrics or unsupported claims
+- layout polish that tries to compensate for thin substance
