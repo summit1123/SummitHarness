@@ -109,6 +109,19 @@ def load_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(path)
     return json.loads(path.read_text(encoding="utf-8"))
+def canonical_mode(mode: str) -> str:
+    lowered = (mode or "").strip().lower()
+    if lowered in {"proposal", "planning", "submission", "contest", "deck"}:
+        return "proposal"
+    if lowered in {"prd", "spec"}:
+        return "prd"
+    if lowered in {"product-ui", "ui", "ux", "design"}:
+        return "product-ui"
+    return "implementation"
+
+
+def active_mode_name(config: dict[str, Any]) -> str:
+    return canonical_mode(str(config.get("loop", {}).get("mode", "implementation")))
 
 
 def active_quality_profile(config: dict[str, Any]) -> str:
@@ -116,10 +129,43 @@ def active_quality_profile(config: dict[str, Any]) -> str:
     if explicit:
         return explicit
 
-    mode = str(config.get("loop", {}).get("mode", "implementation")).strip().lower()
-    if mode in {"proposal", "planning", "submission", "prd"}:
+    mode = active_mode_name(config)
+    if mode == "proposal":
         return "proposal"
+    if mode == "prd":
+        return "prd"
+    if mode == "product-ui":
+        return "product-ui"
     return "development"
+
+
+def load_mode_contract(state_dir: Path, config: dict[str, Any]) -> str:
+    mode_name = active_mode_name(config)
+    return read_text(state_dir / "modes" / f"{mode_name}.md") or "No mode contract was defined."
+
+
+def load_design_contract(state_dir: Path) -> str:
+    return read_text(state_dir / "design" / "DESIGN.md") or "No design contract was defined."
+
+
+def mode_source_of_truth(mode_name: str) -> str:
+    mapping = {
+        "proposal": "Primary source of truth: docs/submissions/proposal.md plus the design contract and PRD. Source review must pass before PDF packaging counts.",
+        "prd": "Primary source of truth: .codex-loop/prd/PRD.md, SUMMARY.md, tasks.json, and TASK-*.json.",
+        "product-ui": "Primary source of truth: the design contract, approved assets, screenshots, and the actual UI implementation.",
+        "implementation": "Primary source of truth: the codebase, tests, runtime checks, PRD, and task graph.",
+    }
+    return mapping.get(mode_name, mapping["implementation"])
+
+
+def mode_execution_focus(mode_name: str) -> str:
+    mapping = {
+        "proposal": "- Edit the reviewer-facing Markdown source first.\n- Run review_submission_source.py before render_markdown_submission.py.\n- Treat PDF as packaging, not as the place where substance appears.",
+        "prd": "- Tighten PRD, SUMMARY, and task files until the remaining work is explicit.\n- Prefer executable acceptance criteria over vague planning prose.",
+        "product-ui": "- Improve DESIGN.md, approved assets, and screen structure before polishing code.\n- Use screenshots or asset evidence for every claimed visual improvement.",
+        "implementation": "- Prefer runnable slices, tests, and runtime verification over speculative notes.\n- Update supporting docs and contracts when behavior changes.",
+    }
+    return mapping.get(mode_name, mapping["implementation"])
 
 
 def load_quality_bars(state_dir: Path) -> str:
@@ -454,10 +500,14 @@ def build_task_seed_prompt(
     scaffold_note = (
         "Bootstrap scaffolding such as `.gitignore`, `ralph.sh`, `.codex/`, `scripts/`, and `.codex-loop/` may already be present. Treat those generated runtime files as expected setup, not unrelated drift."
     )
+    mode_name = active_mode_name(config)
+    mode_contract = load_mode_contract(state_dir, config)
+    design_contract = load_design_contract(state_dir)
+    source_of_truth = mode_source_of_truth(mode_name)
 
     return f'''You are initializing the SummitHarness task graph for the first real loop run.
 
-Mode: {config['loop']['mode']}
+Mode: {config['loop']['mode']} (canonical: {mode_name})
 Promise contract:
 - Emit <promise>DECIDE:question</promise> only if a critical ambiguity blocks trustworthy planning.
 - Emit <promise>BLOCKED:reason</promise> only if you truly cannot proceed.
@@ -473,15 +523,16 @@ Required outcomes:
 
 Planning rules:
 - Prefer 3 to 7 tasks unless the repo state clearly demands otherwise.
-- Use a Superpowers-style shape when it fits: brainstorm/spec lock -> execution plan -> implementation slices -> verification.
+- Use a Superpowers-style shape when it fits: brief lock -> execution plan -> slices -> verification.
+- Keep the mode contract and design contract aligned with the real work.
+- Source-of-truth reminder: {source_of_truth}
 - The first task should usually lock the brief, users, constraints, and acceptance bar unless that work is already done.
-- The second task should usually turn the approved brief into an executable plan or task graph refinement.
 - Later tasks should be vertical slices with real dependencies and explicit verification.
 - Include acceptance criteria and concrete deliverables in each task file.
 - Record assumptions instead of hiding them.
 - Do not keep the default sample tasks unless they genuinely match the project.
 - Do not implement the product itself in this bootstrap step unless a tiny edit is required to clarify planning state.
-- Prefer high-signal files like the PRD, summary, README, docs, and tests before crawling unrelated parts of the repo.
+- Prefer high-signal files like the PRD, summary, docs, approved assets, and tests before crawling unrelated parts of the repo.
 - Stop exploring once you have enough evidence to write a trustworthy first task graph.
 - {git_note}
 - {scaffold_note}
@@ -491,6 +542,12 @@ Compressed context packet:
 
 Base prompt:
 {prompt_md}
+
+Mode contract:
+{mode_contract}
+
+Design contract:
+{design_contract}
 
 Current PRD:
 {prd_md}
@@ -524,13 +581,18 @@ def build_worker_prompt(
         if git_available
         else "Git is not available. Work directly in the workspace and keep task state files accurate."
     )
+    mode_name = active_mode_name(config)
     quality_profile_name = active_quality_profile(config)
     quality_bars = load_quality_bars(state_dir)
+    mode_contract = load_mode_contract(state_dir, config)
+    design_contract = load_design_contract(state_dir)
+    source_of_truth = mode_source_of_truth(mode_name)
+    execution_focus = mode_execution_focus(mode_name)
 
     return f"""You are inside a long-running SummitHarness Codex loop.
 
 Iteration: {iteration}
-Mode: {config['loop']['mode']}
+Mode: {config['loop']['mode']} (canonical: {mode_name})
 Promise contract:
 - Emit <promise>BLOCKED:reason</promise> only when you truly need human help.
 - Emit <promise>DECIDE:question</promise> only when a human decision is unavoidable.
@@ -542,7 +604,11 @@ Loop expectations:
 - Update .codex-loop/tasks.json and the active task file when task state changes.
 - Prefer ending the turn with real progress in files, not just a plan.
 - {git_note}
-- Keep the visual direction intentional. If the design is still generic, improve the design inputs before polishing implementation details.
+- Source-of-truth reminder: {source_of_truth}
+- If the design is still generic, improve the design inputs before polishing implementation details.
+
+Mode-specific execution focus:
+{execution_focus}
 
 Compressed context packet:
 {handoff_md}
@@ -552,6 +618,12 @@ Base prompt:
 
 Project summary:
 {summary_md}
+
+Mode contract:
+{mode_contract}
+
+Design contract:
+{design_contract}
 
 Active quality profile:
 {quality_profile_name}
@@ -586,8 +658,12 @@ def build_review_prompt(
     handoff_md = read_text(state_dir / "context" / "handoff.md")
     task_index = json.dumps(task, ensure_ascii=False, indent=2) if task else "{}"
     task_spec = json.dumps(task_body or {}, ensure_ascii=False, indent=2)
+    mode_name = active_mode_name(config)
     quality_profile_name = active_quality_profile(config)
     quality_bars = load_quality_bars(state_dir)
+    mode_contract = load_mode_contract(state_dir, config)
+    design_contract = load_design_contract(state_dir)
+    source_of_truth = mode_source_of_truth(mode_name)
 
     return f"""You are the review gate for a SummitHarness Codex loop. Work read-only.
 
@@ -595,9 +671,9 @@ Review focus:
 - correctness bugs
 - regressions
 - unmet acceptance criteria
-- missing tests for changed behavior
-- design or UX mismatches only when they materially violate the task
-- violations of the active quality profile
+- missing tests or weak evidence
+- design or UX mismatches only when they materially violate the task or design contract
+- violations of the active mode contract or quality profile
 
 Ignore style-only nits.
 Keep the review short and severe-only.
@@ -608,6 +684,15 @@ Compressed context packet:
 
 Project summary:
 {summary_md}
+
+Source-of-truth reminder:
+{source_of_truth}
+
+Mode contract:
+{mode_contract}
+
+Design contract:
+{design_contract}
 
 Active quality profile:
 {quality_profile_name}
@@ -654,24 +739,37 @@ def build_goal_eval_prompt(
     task_graph = json.dumps(tasks_index, ensure_ascii=False, indent=2)
     task_index = json.dumps(task, ensure_ascii=False, indent=2) if task else "{}"
     task_spec = json.dumps(task_body or {}, ensure_ascii=False, indent=2)
+    mode_name = active_mode_name(config)
     quality_profile_name = active_quality_profile(config)
     quality_bars = load_quality_bars(state_dir)
+    mode_contract = load_mode_contract(state_dir, config)
+    design_contract = load_design_contract(state_dir)
+    source_of_truth = mode_source_of_truth(mode_name)
 
     return f"""You are the goal evaluator for a SummitHarness Codex loop. Work read-only.
 
 Judge whether the actual goal has been met, not just whether the listed tasks were checked off.
 Focus on:
-- goal completion against the PRD and summary
+- goal completion against the PRD, summary, and mode-specific source of truth
 - missing deliverables or weak evidence
 - task graph drift, where remaining work is not represented in the plan
 - false completion claims
-- violations of the active quality profile
+- violations of the mode contract, design contract, or active quality profile
 
 Project summary:
 {summary_md}
 
 Current PRD:
 {prd_md}
+
+Source-of-truth reminder:
+{source_of_truth}
+
+Mode contract:
+{mode_contract}
+
+Design contract:
+{design_contract}
 
 Active quality profile:
 {quality_profile_name}
@@ -713,9 +811,9 @@ MISSING:
 - none
 
 Rules:
-- PASS only when the repo is genuinely in a shippable state for the current goal and satisfies the active quality profile.
+- PASS only when the repo is genuinely in a shippable state for the current goal and satisfies the mode contract, design contract, and active quality profile.
 - FAIL if work remains, evidence is weak, the task graph no longer covers the goal, or the active quality profile is not met.
-- Use REPLAN: YES when the current task graph no longer represents the remaining work, task state is stale, or new tasks/reordering/reopening is needed before trustworthy progress can continue.
+- Use REPLAN: YES when the current task graph no longer represents the remaining work, task state is stale, or new tasks, reordering, reopening, or stronger document gates are needed before trustworthy progress can continue.
 - Use REPLAN: NO when the current open tasks already represent the remaining work well enough.
 - Use BLOCKED only when a real external blocker prevents trustworthy progress.
 - Use DECIDE only when a real human product decision is required.
@@ -742,10 +840,14 @@ def build_task_replan_prompt(
         if git_available
         else "Git is not available. Refresh the task graph in place and keep completed work accurately marked."
     )
+    mode_name = active_mode_name(config)
+    mode_contract = load_mode_contract(state_dir, config)
+    design_contract = load_design_contract(state_dir)
+    source_of_truth = mode_source_of_truth(mode_name)
 
     return f"""You are refreshing the SummitHarness task graph because the goal evaluator found remaining work.
 
-Mode: {config['loop']['mode']}
+Mode: {config['loop']['mode']} (canonical: {mode_name})
 Promise contract:
 - Emit <promise>DECIDE:question</promise> only if a critical ambiguity blocks trustworthy replanning.
 - Emit <promise>BLOCKED:reason</promise> only if you truly cannot proceed.
@@ -756,9 +858,11 @@ Your job right now is planning, not product implementation.
 Required outcomes:
 - Update `.codex-loop/tasks.json` and `.codex-loop/tasks/TASK-*.json` so the remaining work is represented truthfully.
 - Preserve or mark already completed work accurately instead of erasing it.
-- Use only `todo`, `in_progress`, or `done`/`completed` style statuses in `tasks.json`; do not invent labels like `pending`.
+- Use only `todo`, `in_progress`, or `done` or `completed` style statuses in `tasks.json`; do not invent labels like `pending`.
 - Add, reopen, reorder, or tighten tasks so there is one clearly runnable next task.
 - If the goal is actually complete and only task state drifted, fix the task state instead of inventing fake work.
+- Keep the mode contract, design contract, and source-of-truth reminder aligned with the refreshed plan.
+- Source-of-truth reminder: {source_of_truth}
 - {git_note}
 
 Goal evaluator verdict:
@@ -777,6 +881,12 @@ Compressed context packet:
 
 Base prompt:
 {prompt_md}
+
+Mode contract:
+{mode_contract}
+
+Design contract:
+{design_contract}
 
 Current PRD:
 {prd_md}

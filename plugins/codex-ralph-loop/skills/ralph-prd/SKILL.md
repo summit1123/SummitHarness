@@ -46,9 +46,9 @@ chainTo:
     targetSkill: ralph-design-gate
     message: 'UI and UX concerns detected in the planning brief — loading design gate guidance for flow and visual direction.'
   -
-    pattern: '(pdf|attachment|submission|contest|proposal)'
-    targetSkill: summit-pdf-gate
-    message: 'Submission artifact concerns detected in the planning brief — loading the PDF review gate.'
+    pattern: '(proposal|submission|contest|document|markdown|attachment|pdf)'
+    targetSkill: summit-document-gate
+    message: 'Submission artifact concerns detected in the planning brief — loading the source-first document gate.'
   -
     pattern: '(implement|build|ship|prototype|frontend|backend|api)'
     targetSkill: ralph-runtime
@@ -73,4 +73,4 @@ Transform raw requirements into:
 - Record assumptions instead of hiding them.
 - Prefer vertical slices over giant phase buckets.
 - Keep one task actively executable at a time.
-- If a planning PDF already exists, run the PDF gate before calling the plan "ready."
+- If a planning or submission document already exists, run the document gate before calling the plan ready.

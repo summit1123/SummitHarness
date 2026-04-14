@@ -17,6 +17,8 @@ STOP_DISPATCH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "scripts" / "stop_h
 CODEX_RALPH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "codex_ralph.py"
 CONTEXT_ENGINE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "context_engine.py"
 REVIEW_PDF = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "review_submission_pdf.py"
+REVIEW_SOURCE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "review_submission_source.py"
+RENDER_MD = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "render_markdown_submission.py"
 INSTALLER = REPO_ROOT / "plugins" / "codex-ralph-loop" / "scripts" / "install_home_local.py"
 PLUGIN_COMMANDS_DIR = REPO_ROOT / "plugins" / "codex-ralph-loop" / "commands"
 
@@ -42,6 +44,11 @@ class SummitHarnessTests(unittest.TestCase):
             self.assertTrue(marker.exists())
             self.assertTrue((root / "scripts" / "context_engine.py").exists())
             self.assertTrue((root / "scripts" / "review_submission_pdf.py").exists())
+            self.assertTrue((root / "scripts" / "review_submission_source.py").exists())
+            self.assertTrue((root / "scripts" / "render_markdown_submission.py").exists())
+            self.assertTrue((root / ".codex-loop" / "design" / "DESIGN.md").exists())
+            self.assertTrue((root / ".codex-loop" / "modes" / "proposal.md").exists())
+            self.assertTrue((root / "docs" / "submissions" / "proposal.md").exists())
             self.assertTrue((root / ".codex-loop" / "context" / "durable.json").exists())
             self.assertTrue((root / ".codex-loop" / "evals" / ".gitkeep").exists())
 
@@ -65,6 +72,12 @@ class SummitHarnessTests(unittest.TestCase):
                     "approved",
                     "--title",
                     "Hero v1",
+                    "--role",
+                    "evidence",
+                    "--approved-for",
+                    "both",
+                    "--style-family",
+                    "document-editorial",
                 ],
                 cwd=root,
                 check=True,
@@ -78,6 +91,9 @@ class SummitHarnessTests(unittest.TestCase):
                 text=True,
             )
             payload = json.loads(status.stdout)
+            registry = json.loads((root / ".codex-loop" / "assets" / "registry.json").read_text(encoding="utf-8"))
+            self.assertEqual(registry["assets"][0]["role"], "evidence")
+            self.assertEqual(registry["assets"][0]["approvedFor"], "both")
             self.assertIn("Hero v1", "\n".join(payload["approvedAssets"]))
             self.assertIn("nextBestStep", payload)
             self.assertIn("auto-generate the real task graph", payload["nextBestStep"])
@@ -231,10 +247,10 @@ REPLAN: YES
         self.assertTrue(mod.tasks_need_seed(tasks_index, tasks_index["tasks"]))
 
         custom_index = {
-            "project": "MIRROR contest submission planning workspace",
+            "project": "Citizen AI proposal planning workspace",
             "tasks": [
-                {"id": "001", "title": "Audit current MIRROR reality and contest constraints", "status": "todo"},
-                {"id": "002", "title": "Draft the Korean web-form submission answers", "status": "todo"},
+                {"id": "001", "title": "Audit the real submission context and constraints", "status": "todo"},
+                {"id": "002", "title": "Draft the web-form submission answers", "status": "todo"},
             ],
         }
         self.assertFalse(mod.tasks_need_seed(custom_index, custom_index["tasks"]))
@@ -302,6 +318,34 @@ REPLAN: YES
             status = mod.load_status(root, root / ".codex-loop")
             self.assertIn("proposal.pdf", status["handoff"])
             self.assertIn("submission pdf blockers", status["nextBestStep"].lower())
+
+    def test_context_engine_surfaces_warning_only_source_review_without_crashing(self) -> None:
+        mod = load_module(CONTEXT_ENGINE, "context_engine_source_review_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            review_dir = root / ".codex-loop" / "artifacts" / "source-review"
+            review_dir.mkdir(parents=True, exist_ok=True)
+            (review_dir / "proposal-review.json").write_text(
+                json.dumps(
+                    {
+                        "file": {"name": "proposal.md"},
+                        "mode": "proposal",
+                        "stats": {"wordCount": 2200, "tableCount": 6},
+                        "blockers": [],
+                        "warnings": ["Tighten the opening paragraph."],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            status = mod.load_status(root, root / ".codex-loop")
+            self.assertIn("proposal.md", status["handoff"])
+            self.assertIn("source warnings: 1", status["handoff"].lower())
+            self.assertIn("nextBestStep", status)
 
     def test_loop_can_replan_after_goal_evaluator_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -862,7 +906,32 @@ if __name__ == "__main__":
             self.assertIn(".gitignore", prompt)
             self.assertIn(".codex-loop/", prompt)
             self.assertIn("expected setup, not unrelated drift", prompt)
-            self.assertIn("Prefer high-signal files like the PRD, summary, README, docs, and tests", prompt)
+            self.assertIn("Prefer high-signal files like the PRD, summary, docs, approved assets, and tests", prompt)
+
+    def test_markdown_renderer_supports_headings_and_tables(self) -> None:
+        mod = load_module(RENDER_MD, "render_markdown_submission_test")
+        html = mod.markdown_to_html("# Title\n\n## Section\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n")
+        self.assertIn("<h1>Title</h1>", html)
+        self.assertIn("<h2>Section</h2>", html)
+        self.assertIn("<table>", html)
+        self.assertIn("<th>A</th>", html)
+
+    def test_source_review_flags_placeholder_markdown(self) -> None:
+        mod = load_module(REVIEW_SOURCE, "review_submission_source_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            source = root / "proposal.md"
+            design = root / "DESIGN.md"
+            source.write_text(
+                "# Sample\n\n## Problem\nReplace this section.\n\n## Solution\nDraft.\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n",
+                encoding="utf-8",
+            )
+            design.write_text("Preset: document-editorial\n", encoding="utf-8")
+
+            review = mod.build_review(root, source, "proposal", design)
+
+            self.assertTrue(review["blockers"])
+            self.assertTrue(any("Placeholder" in item or "template markers" in item for item in review["blockers"]))
 
 
 if __name__ == "__main__":
