@@ -5,11 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import re
 import shutil
 import shlex
 import subprocess
 import sys
+import threading
+import time
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -40,10 +43,19 @@ DEFAULT_TEMPLATE_TASK_TITLES = {
     "Write the first execution plan",
     "Build and verify the first vertical slice",
 }
+KNOWN_QUALITY_PROFILES = {"development", "proposal", "prd", "product-ui"}
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "version": 1,
     "agent": {
+        "timeout_seconds": {
+            "seed": 180,
+            "worker": 900,
+            "review": 300,
+            "evaluator": 300,
+            "replan": 300,
+        },
+        "heartbeat_seconds": 15,
         "command": [
             "codex",
             "exec",
@@ -126,7 +138,7 @@ def active_mode_name(config: dict[str, Any]) -> str:
 
 def active_quality_profile(config: dict[str, Any]) -> str:
     explicit = str(config.get("loop", {}).get("quality_profile", "")).strip().lower()
-    if explicit:
+    if explicit in KNOWN_QUALITY_PROFILES:
         return explicit
 
     mode = active_mode_name(config)
@@ -137,6 +149,37 @@ def active_quality_profile(config: dict[str, Any]) -> str:
     if mode == "product-ui":
         return "product-ui"
     return "development"
+
+
+def phase_timeout_seconds(config: dict[str, Any], phase: str) -> float | None:
+    defaults = DEFAULT_CONFIG["agent"]["timeout_seconds"]
+    raw_value = config.get("agent", {}).get("timeout_seconds", defaults)
+    if isinstance(raw_value, dict):
+        candidate = raw_value.get(phase, raw_value.get("default", defaults.get(phase)))
+    else:
+        candidate = raw_value
+
+    try:
+        timeout_value = float(candidate)
+    except (TypeError, ValueError):
+        timeout_value = float(defaults.get(phase, 0))
+
+    return timeout_value if timeout_value > 0 else None
+
+
+def heartbeat_seconds(config: dict[str, Any]) -> float:
+    raw_value = config.get("agent", {}).get("heartbeat_seconds", DEFAULT_CONFIG["agent"]["heartbeat_seconds"])
+    try:
+        heartbeat_value = float(raw_value)
+    except (TypeError, ValueError):
+        heartbeat_value = float(DEFAULT_CONFIG["agent"]["heartbeat_seconds"])
+    return heartbeat_value if heartbeat_value > 0 else float(DEFAULT_CONFIG["agent"]["heartbeat_seconds"])
+
+
+def format_timeout_summary(label: str, result: dict[str, Any]) -> str:
+    duration = float(result.get("durationSeconds", 0.0))
+    log_path = result.get("logPath", "")
+    return f"{label} timed out after {duration:.1f}s. See {log_path}."
 
 
 def load_mode_contract(state_dir: Path, config: dict[str, Any]) -> str:
@@ -978,7 +1021,18 @@ def run_goal_evaluator(
         output_last_message=eval_last_message,
         log_path=eval_log,
         extra_env=config["agent"].get("env", {}),
+        timeout_seconds=phase_timeout_seconds(config, "evaluator"),
+        heartbeat_interval=heartbeat_seconds(config),
+        label=label,
     )
+    if eval_result.get("timed_out"):
+        return {
+            "passed": False,
+            "status": "INCOMPLETE",
+            "summary": format_timeout_summary("Goal evaluator", eval_result),
+            "next": "Inspect the evaluator log, tighten the task graph, and rerun the loop.",
+            "replan": True,
+        }
     return parse_evaluator_result(eval_result["last_message"])
 
 
@@ -1008,6 +1062,9 @@ def run_task_replan(
         output_last_message=replan_last_message,
         log_path=replan_log,
         extra_env=config["agent"].get("env", {}),
+        timeout_seconds=phase_timeout_seconds(config, "replan"),
+        heartbeat_interval=heartbeat_seconds(config),
+        label=label,
     )
 
 
@@ -1019,6 +1076,9 @@ def run_codex(
     output_last_message: Path,
     log_path: Path,
     extra_env: dict[str, str] | None = None,
+    timeout_seconds: float | None = None,
+    heartbeat_interval: float = 15.0,
+    label: str = "codex",
 ) -> dict[str, Any]:
     context = {
         "project_root": str(project_root),
@@ -1029,41 +1089,144 @@ def run_codex(
     if extra_env:
         env.update({key: str(value) for key, value in extra_env.items()})
 
-    result = subprocess.run(
+    output_last_message.parent.mkdir(parents=True, exist_ok=True)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    command_text = " ".join(shlex.quote(part) for part in command)
+    with log_path.open("w", encoding="utf-8") as handle:
+        handle.write(f"$ {command_text}\n\n")
+        handle.write(f"## Label\n{label}\n\n")
+        handle.write(f"## Started\n{now_iso()}\n\n")
+        handle.write(f"## Timeout Seconds\n{timeout_seconds if timeout_seconds is not None else 'none'}\n\n")
+        handle.write("## Prompt\n")
+        handle.write(prompt)
+        if not prompt.endswith("\n"):
+            handle.write("\n")
+        handle.write("\n## Streaming Output\n")
+        handle.flush()
+
+    started_at = time.monotonic()
+    deadline = started_at + timeout_seconds if timeout_seconds is not None else None
+    process = subprocess.Popen(
         command,
         cwd=project_root,
-        input=prompt,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        capture_output=True,
+        bufsize=1,
         env=env,
     )
 
-    combined = [
-        f"$ {' '.join(shlex.quote(part) for part in command)}",
-        "",
-        "## Prompt",
-        prompt,
-        "",
-        "## Stdout",
-        result.stdout,
-        "",
-        "## Stderr",
-        result.stderr,
-        "",
-        f"## Exit code\n{result.returncode}\n",
-    ]
-    write_text(log_path, "\n".join(combined))
+    if process.stdin is not None:
+        try:
+            process.stdin.write(prompt)
+            process.stdin.close()
+        except BrokenPipeError:
+            pass
+
+    stream_queue: queue.Queue[tuple[str, str | None]] = queue.Queue()
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+
+    def pump_stream(stream_name: str, stream: Any) -> None:
+        try:
+            for line in iter(stream.readline, ""):
+                stream_queue.put((stream_name, line))
+        finally:
+            try:
+                stream.close()
+            except Exception:
+                pass
+            stream_queue.put((stream_name, None))
+
+    threads = []
+    for stream_name, stream in (("stdout", process.stdout), ("stderr", process.stderr)):
+        if stream is None:
+            stream_queue.put((stream_name, None))
+            continue
+        thread = threading.Thread(target=pump_stream, args=(stream_name, stream), daemon=True)
+        thread.start()
+        threads.append(thread)
+
+    closed_streams: set[str] = set()
+    timed_out = False
+    last_heartbeat_at = started_at
+
+    with log_path.open("a", encoding="utf-8") as handle:
+        while True:
+            now = time.monotonic()
+            if process.poll() is None and deadline is not None and now >= deadline:
+                timed_out = True
+                handle.write(f"\n[{now_iso()}] timeout: {label} exceeded {timeout_seconds:.1f}s\n")
+                handle.flush()
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    handle.write(f"[{now_iso()}] timeout: terminate did not finish; killing process\n")
+                    handle.flush()
+                    process.kill()
+                    process.wait()
+
+            try:
+                stream_name, payload = stream_queue.get(timeout=0.2)
+            except queue.Empty:
+                if process.poll() is None and now - last_heartbeat_at >= heartbeat_interval:
+                    handle.write(f"[{now_iso()}] heartbeat: {label} still running\n")
+                    handle.flush()
+                    last_heartbeat_at = now
+                if process.poll() is not None and len(closed_streams) == 2:
+                    break
+                continue
+
+            if payload is None:
+                closed_streams.add(stream_name)
+                if process.poll() is not None and len(closed_streams) == 2 and stream_queue.empty():
+                    break
+                continue
+
+            if stream_name == "stdout":
+                stdout_chunks.append(payload)
+            else:
+                stderr_chunks.append(payload)
+            handle.write(f"[{stream_name}] {payload}")
+            if not payload.endswith("\n"):
+                handle.write("\n")
+            handle.flush()
+
+    for thread in threads:
+        thread.join(timeout=1)
+
+    returncode = process.wait()
+    stdout_text = "".join(stdout_chunks)
+    stderr_text = "".join(stderr_chunks)
+    duration_seconds = time.monotonic() - started_at
+    with log_path.open("a", encoding="utf-8") as handle:
+        handle.write("\n## Stdout (captured)\n")
+        handle.write(stdout_text)
+        if stdout_text and not stdout_text.endswith("\n"):
+            handle.write("\n")
+        handle.write("\n## Stderr (captured)\n")
+        handle.write(stderr_text)
+        if stderr_text and not stderr_text.endswith("\n"):
+            handle.write("\n")
+        handle.write(f"\n## Exit code\n{returncode}\n")
+        handle.write(f"\n## Duration Seconds\n{duration_seconds:.3f}\n")
+        handle.write(f"\n## Timed Out\n{'yes' if timed_out else 'no'}\n")
 
     last_message = read_text(output_last_message)
     if not last_message:
-        last_message = result.stdout.strip()
+        last_message = stdout_text.strip()
 
     return {
-        "returncode": result.returncode,
-        "stdout": result.stdout,
-        "stderr": result.stderr,
+        "returncode": returncode,
+        "stdout": stdout_text,
+        "stderr": stderr_text,
         "last_message": last_message,
         "command": command,
+        "timed_out": timed_out,
+        "durationSeconds": duration_seconds,
+        "logPath": str(log_path),
     }
 
 
@@ -1218,7 +1381,13 @@ def main() -> int:
             output_last_message=seed_last_message,
             log_path=seed_log,
             extra_env=config["agent"].get("env", {}),
+            timeout_seconds=phase_timeout_seconds(config, "seed"),
+            heartbeat_interval=heartbeat_seconds(config),
+            label="task-seed",
         )
+        if seed_result.get("timed_out"):
+            print(format_timeout_summary("Task bootstrap", seed_result), file=sys.stderr)
+            return ERROR_EXIT
         seed_promise = parse_promise(seed_result["last_message"])
         maybe_refresh_context(project_root, state_dir, config, "task-seed-complete")
         tasks_index = load_tasks_index(state_dir)
@@ -1299,6 +1468,9 @@ def main() -> int:
                         git_available=git_available,
                         evaluation=evaluation,
                     )
+                    if replan_result.get("timed_out"):
+                        print(format_timeout_summary("Task replan", replan_result), file=sys.stderr)
+                        return ERROR_EXIT
                     replan_promise = parse_promise(replan_result["last_message"])
                     maybe_refresh_context(project_root, state_dir, config, "precomplete-replan")
                     tasks = load_tasks(state_dir)
@@ -1380,7 +1552,45 @@ def main() -> int:
             output_last_message=worker_last_message,
             log_path=worker_log,
             extra_env=config["agent"].get("env", {}),
+            timeout_seconds=phase_timeout_seconds(config, "worker"),
+            heartbeat_interval=heartbeat_seconds(config),
+            label=f"iteration-{iteration:03d}-worker",
         )
+        if worker_result.get("timed_out"):
+            timeout_summary = format_timeout_summary("Worker", worker_result)
+            append_loop_log(
+                state_dir,
+                iteration=iteration,
+                task=task,
+                promise="ERROR:worker-timeout",
+                checks_summary="Not run.",
+                review_summary="Not run.",
+                eval_summary="Not run.",
+                message=timeout_summary,
+            )
+            write_json(
+                state_dir / "state.json",
+                {
+                    "updatedAt": now_iso(),
+                    "iteration": iteration,
+                    "maxIterations": max_iterations,
+                    "promise": "ERROR:worker-timeout",
+                    "task": task,
+                    "checksPassed": False,
+                    "checksSummary": "Not run.",
+                    "reviewPassed": False,
+                    "reviewSummary": "Not run.",
+                    "evalPassed": False,
+                    "evalStatus": "INCOMPLETE",
+                    "evalSummary": timeout_summary,
+                    "evalNext": "",
+                    "allTasksComplete": all_tasks_complete(tasks),
+                    "gitAvailable": git_available,
+                    "replanSummary": "",
+                },
+            )
+            print(timeout_summary, file=sys.stderr)
+            return ERROR_EXIT
 
         promise = parse_promise(worker_result["last_message"])
         checks = run_checks(project_root, state_dir, iteration, check_commands, stop_on_failure)
@@ -1403,8 +1613,16 @@ def main() -> int:
                 project_root=project_root,
                 output_last_message=review_last_message,
                 log_path=review_log,
+                extra_env=config["agent"].get("env", {}),
+                timeout_seconds=phase_timeout_seconds(config, "review"),
+                heartbeat_interval=heartbeat_seconds(config),
+                label=f"iteration-{iteration:03d}-review",
             )
-            review_passed, review_summary = parse_review_result(review_result["last_message"])
+            if review_result.get("timed_out"):
+                review_passed = False
+                review_summary = format_timeout_summary("Review", review_result)
+            else:
+                review_passed, review_summary = parse_review_result(review_result["last_message"])
         elif review_enabled:
             review_passed = False
             review_summary = "Skipped because local checks failed."
@@ -1462,6 +1680,9 @@ def main() -> int:
                 git_available=git_available,
                 evaluation=evaluation,
             )
+            if replan_result.get("timed_out"):
+                print(format_timeout_summary("Task replan", replan_result), file=sys.stderr)
+                return ERROR_EXIT
             replan_signal = parse_promise(replan_result["last_message"])
             maybe_refresh_context(project_root, state_dir, config, f"iteration-{iteration}-replan")
             tasks, specs, active_task, active_task_body = load_current_task_snapshot(state_dir)

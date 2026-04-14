@@ -960,5 +960,44 @@ if __name__ == "__main__":
             self.assertTrue(any("Placeholder" in item or "template markers" in item for item in review["blockers"]))
 
 
+    def test_active_quality_profile_falls_back_for_unknown_profile(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_quality_profile_test")
+        config = {
+            "loop": {
+                "mode": "product-ui",
+                "quality_profile": "security-console",
+            }
+        }
+        self.assertEqual(mod.active_quality_profile(config), "product-ui")
+
+    def test_run_codex_creates_log_and_times_out_cleanly(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_timeout_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            log_path = root / "run.log"
+            last_message = root / "last.md"
+            result = mod.run_codex(
+                prompt="hello timeout",
+                command_value=[
+                    sys.executable,
+                    "-c",
+                    "import sys,time; print('ready', flush=True); time.sleep(2)",
+                ],
+                project_root=root,
+                output_last_message=last_message,
+                log_path=log_path,
+                timeout_seconds=0.2,
+                heartbeat_interval=0.05,
+                label="timeout-test",
+            )
+
+            log_text = log_path.read_text(encoding="utf-8")
+            self.assertTrue(result["timed_out"])
+            self.assertIn("## Streaming Output", log_text)
+            self.assertIn("ready", log_text)
+            self.assertIn("timeout-test", log_text)
+            self.assertIn("Timed Out", log_text)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -128,6 +128,17 @@ python3 scripts/context_engine.py refresh --source bootstrap
 ./ralph.sh --once
 ```
 
+## 실행 중 무엇을 보게 되나
+
+`./ralph.sh --once`를 실행하면 이제 Codex가 끝날 때까지 조용히 멈춘 것처럼 보이지 않습니다.
+
+- `.codex-loop/history/seed-worker.log` 또는 `iteration-*-worker.log`가 **실행 직후 바로 생성**됩니다.
+- Codex가 오래 걸리면 로그에 heartbeat 줄이 주기적으로 추가됩니다.
+- seed / worker / review / evaluator / replan phase는 각각 timeout을 가집니다.
+- timeout이 나면 로그 파일 경로와 함께 명시적으로 실패합니다.
+
+기본값은 `.codex-loop/config.json`의 `agent.timeout_seconds`와 `agent.heartbeat_seconds`로 조정할 수 있습니다.
+
 ## product-ui 흐름 예시
 
 1. `loop.mode`를 `product-ui`로 설정

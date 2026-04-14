@@ -24,7 +24,15 @@
       "{output_last_message}",
       "-"
     ],
-    "env": {}
+    "env": {},
+    "timeout_seconds": {
+      "seed": 180,
+      "worker": 900,
+      "review": 300,
+      "evaluator": 300,
+      "replan": 300
+    },
+    "heartbeat_seconds": 15
   },
   "loop": {
     "completion_promise": "COMPLETE",
