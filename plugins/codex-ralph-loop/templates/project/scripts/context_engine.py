@@ -200,6 +200,17 @@ def extract_preset(design_text: str) -> str:
     return match.group(1).strip().lower() if match else 'document-editorial'
 
 
+def extract_reference_pack(design_text: str) -> str:
+    match = re.search(r'(?mi)^Reference-Pack:\s*([A-Za-z0-9_-]+)\s*$', design_text or '')
+    return match.group(1).strip().lower() if match else ''
+
+
+def load_reference_pack_text(state_dir: Path, pack_name: str) -> str:
+    if not pack_name:
+        return ''
+    return read_text(state_dir / 'design' / 'reference-packs' / f'{pack_name}.md')
+
+
 def contract_points(text: str, limit: int = 5) -> list[str]:
     lines: list[str] = []
     for raw in (text or '').splitlines():
@@ -435,8 +446,11 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
     mode_contract = load_mode_contract(state_dir)
     design_contract = load_design_contract(state_dir)
     design_preset = extract_preset(design_contract)
+    reference_pack = extract_reference_pack(design_contract)
+    reference_pack_text = load_reference_pack_text(state_dir, reference_pack)
     mode_lines = contract_points(mode_contract)
     design_lines = contract_points(design_contract)
+    reference_pack_lines = contract_points(reference_pack_text)
 
     if seed_pending:
         open_task_lines = ['- Bootstrap template is still active. The first Ralph run will replace it with a project-specific task graph.']
@@ -467,7 +481,11 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         '',
         '## Design Contract',
         f'- Active preset: {design_preset}',
+        f"- Active reference pack: {reference_pack or 'none'}",
         *(design_lines or ['- No design contract summary captured yet.']),
+        '',
+        '## Reference Pack',
+        *(reference_pack_lines or ['- No reference pack guidance loaded yet.']),
         '',
         '## Current Execution State',
         active_task_line,
@@ -524,6 +542,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         f'- Repo: {project_root}',
         f'- Active mode: {mode}',
         f'- Design preset: {design_preset}',
+        f"- Reference pack: {reference_pack or 'none'}",
         f'- Next best step: {next_step}',
         f"- Active task: {active_task.get('id')} {active_task.get('title')}" if active_task else '- Active task: none',
         f"- Check state: {latest_state.get('checksSummary', 'not run')}",
@@ -536,6 +555,9 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         '',
         '## Design Contract',
         *(design_lines[:4] or ['- Improve the design source before polishing output.']),
+        '',
+        '## Reference Pack',
+        *(reference_pack_lines[:4] or ['- No reference pack guidance loaded yet.']),
         '',
         '## Must Remember',
         *(durable['constraints'][:4] or ['- Keep the PRD, tasks, and repo state aligned.']),
@@ -566,6 +588,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         'mode': mode,
         'qualityProfile': profile,
         'designPreset': design_preset,
+        'referencePack': reference_pack,
         'activeTask': active_task,
         'openTaskCount': 0 if seed_pending else len(open_tasks),
         'nextBestStep': next_step,
@@ -594,6 +617,7 @@ def refresh_context(project_root: Path, state_dir: Path, source: str = 'manual')
             'activeTaskId': payload['activeTask'].get('id') if isinstance(payload.get('activeTask'), dict) else None,
             'mode': payload['mode'],
             'designPreset': payload['designPreset'],
+            'referencePack': payload['referencePack'],
         },
     )
     return payload

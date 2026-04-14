@@ -148,6 +148,21 @@ def load_design_contract(state_dir: Path) -> str:
     return read_text(state_dir / "design" / "DESIGN.md") or "No design contract was defined."
 
 
+def extract_reference_pack(design_contract: str) -> str:
+    match = re.search(r'(?mi)^Reference-Pack:\s*([A-Za-z0-9_-]+)\s*$', design_contract or '')
+    return match.group(1).strip().lower() if match else ''
+
+
+def load_reference_pack_contract(state_dir: Path, design_contract: str) -> tuple[str, str]:
+    pack_name = extract_reference_pack(design_contract)
+    if not pack_name:
+        return '', 'No reference pack selected.'
+    pack_text = read_text(state_dir / 'design' / 'reference-packs' / f'{pack_name}.md')
+    if not pack_text:
+        return pack_name, f'Reference pack `{pack_name}` was selected but no file was found under .codex-loop/design/reference-packs/.'
+    return pack_name, pack_text
+
+
 def mode_source_of_truth(mode_name: str) -> str:
     mapping = {
         "proposal": "Primary source of truth: docs/submissions/proposal.md plus the design contract and PRD. Source review must pass before PDF packaging counts.",
@@ -503,6 +518,7 @@ def build_task_seed_prompt(
     mode_name = active_mode_name(config)
     mode_contract = load_mode_contract(state_dir, config)
     design_contract = load_design_contract(state_dir)
+    reference_pack_name, reference_pack_contract = load_reference_pack_contract(state_dir, design_contract)
     source_of_truth = mode_source_of_truth(mode_name)
 
     return f'''You are initializing the SummitHarness task graph for the first real loop run.
@@ -549,6 +565,12 @@ Mode contract:
 Design contract:
 {design_contract}
 
+Active reference pack:
+{reference_pack_name or 'none'}
+
+Reference pack contract:
+{reference_pack_contract}
+
 Current PRD:
 {prd_md}
 
@@ -586,6 +608,7 @@ def build_worker_prompt(
     quality_bars = load_quality_bars(state_dir)
     mode_contract = load_mode_contract(state_dir, config)
     design_contract = load_design_contract(state_dir)
+    reference_pack_name, reference_pack_contract = load_reference_pack_contract(state_dir, design_contract)
     source_of_truth = mode_source_of_truth(mode_name)
     execution_focus = mode_execution_focus(mode_name)
 
@@ -625,6 +648,12 @@ Mode contract:
 Design contract:
 {design_contract}
 
+Active reference pack:
+{reference_pack_name or 'none'}
+
+Reference pack contract:
+{reference_pack_contract}
+
 Active quality profile:
 {quality_profile_name}
 
@@ -663,6 +692,7 @@ def build_review_prompt(
     quality_bars = load_quality_bars(state_dir)
     mode_contract = load_mode_contract(state_dir, config)
     design_contract = load_design_contract(state_dir)
+    reference_pack_name, reference_pack_contract = load_reference_pack_contract(state_dir, design_contract)
     source_of_truth = mode_source_of_truth(mode_name)
 
     return f"""You are the review gate for a SummitHarness Codex loop. Work read-only.
@@ -693,6 +723,12 @@ Mode contract:
 
 Design contract:
 {design_contract}
+
+Active reference pack:
+{reference_pack_name or 'none'}
+
+Reference pack contract:
+{reference_pack_contract}
 
 Active quality profile:
 {quality_profile_name}
@@ -744,6 +780,7 @@ def build_goal_eval_prompt(
     quality_bars = load_quality_bars(state_dir)
     mode_contract = load_mode_contract(state_dir, config)
     design_contract = load_design_contract(state_dir)
+    reference_pack_name, reference_pack_contract = load_reference_pack_contract(state_dir, design_contract)
     source_of_truth = mode_source_of_truth(mode_name)
 
     return f"""You are the goal evaluator for a SummitHarness Codex loop. Work read-only.
@@ -770,6 +807,12 @@ Mode contract:
 
 Design contract:
 {design_contract}
+
+Active reference pack:
+{reference_pack_name or 'none'}
+
+Reference pack contract:
+{reference_pack_contract}
 
 Active quality profile:
 {quality_profile_name}
@@ -843,6 +886,7 @@ def build_task_replan_prompt(
     mode_name = active_mode_name(config)
     mode_contract = load_mode_contract(state_dir, config)
     design_contract = load_design_contract(state_dir)
+    reference_pack_name, reference_pack_contract = load_reference_pack_contract(state_dir, design_contract)
     source_of_truth = mode_source_of_truth(mode_name)
 
     return f"""You are refreshing the SummitHarness task graph because the goal evaluator found remaining work.
@@ -887,6 +931,12 @@ Mode contract:
 
 Design contract:
 {design_contract}
+
+Active reference pack:
+{reference_pack_name or 'none'}
+
+Reference pack contract:
+{reference_pack_contract}
 
 Current PRD:
 {prd_md}

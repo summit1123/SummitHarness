@@ -6,6 +6,7 @@ Use this mode for proposal packages, contest submissions, reviewer-facing docume
 
 - `docs/submissions/proposal.md`
 - `.codex-loop/design/DESIGN.md`
+- the selected reference pack under `.codex-loop/design/reference-packs/`
 - `.codex-loop/prd/PRD.md`
 
 ## Completion bar
@@ -13,6 +14,7 @@ Use this mode for proposal packages, contest submissions, reviewer-facing docume
 - The Markdown source reads like a reviewer-facing document, not a chat response.
 - Problem, solution, feasibility, business path, and expected effect are all explicit.
 - Needed tables, evidence captures, comparisons, and workflows exist in source form.
+- The selected reference pack makes the visual direction explicit before PDF packaging.
 - The rendered PDF is a packaging step, not the only place where quality appears.
 
 ## Fail when

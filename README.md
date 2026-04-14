@@ -12,13 +12,22 @@
 2. `context-engine`
 3. `mode contracts`
 4. `document source gate`
-5. `render pipeline`
-6. `implementation loop`
-7. `evaluation gates`
+5. `reference-pack design layer`
+6. `render pipeline`
+7. `implementation loop`
+8. `evaluation gates`
 
 즉 proposal은 proposal답게, PRD는 PRD답게, 구현은 구현답게, UI는 UI답게 평가되도록 만드는 구조입니다.
 
 ## 가장 중요한 변화
+
+디자인도 이제 `preset + reference pack + project-specific rules` 구조로 갑니다.
+
+- `Preset`: 문서형인지 제품형인지 같은 큰 방향
+- `Reference-Pack`: 프로젝트에 맞는 시각 레퍼런스 가족
+- `Project-Specific Rules`: 이번 작업에서 금지할 것과 꼭 지킬 것
+
+기본 제공 reference pack은 `awesome-design-md`에서 얻은 설계 감각을 우리 하네스 문법으로 다시 정리한 것입니다.
 
 이제 proposal 류 산출물은:
 
@@ -47,7 +56,7 @@ python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 python3 scripts/preflight.py run
 ```
 
-proposal 흐름이면 이어서:
+proposal 흐름이면 먼저 `.codex-loop/design/DESIGN.md`에서 `Reference-Pack`을 고르고, 필요하면 `.codex-loop/design/reference-packs/`의 파일을 복제해 프로젝트 전용으로 수정한 뒤 이어서:
 
 ```bash
 python3 scripts/review_submission_source.py docs/submissions/proposal.md

@@ -8,6 +8,7 @@
 - compressed context engine
 - preflight environment checks
 - Markdown source review gate
+- reference-pack design layer
 - Markdown -> HTML/PDF renderer
 - final PDF attachment gate
 - approved asset registry
@@ -45,6 +46,7 @@ python3 scripts/install_home_local.py
 - `.codex-loop/context/`
 - `.codex-loop/evals/`
 - `.codex-loop/design/DESIGN.md`
+- `.codex-loop/design/reference-packs/`
 - `.codex-loop/modes/`
 - `.codex-loop/assets/registry.json`
 - `.codex-loop/preflight/`
@@ -82,12 +84,13 @@ python3 scripts/context_engine.py refresh --source bootstrap
 1. 플러그인 설치
 2. 대상 repo bootstrap
 3. PRD/SUMMARY/DESIGN 계약 정리
-4. proposal이면 Markdown source부터 작성
-5. source review 통과
-6. render 후 final PDF gate 실행
-7. context refresh
-8. Ralph 실행
-9. evaluator가 목표 충족과 task drift를 계속 다시 판단
+4. `Reference-Pack` 선택 또는 프로젝트 전용 pack 생성
+5. proposal이면 Markdown source부터 작성
+6. source review 통과
+7. render 후 final PDF gate 실행
+8. context refresh
+9. Ralph 실행
+10. evaluator가 목표 충족과 task drift를 계속 다시 판단
 
 ## slash command
 

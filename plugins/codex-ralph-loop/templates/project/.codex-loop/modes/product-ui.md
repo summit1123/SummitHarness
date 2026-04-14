@@ -5,6 +5,7 @@ Use this mode when the goal is a screen system, interaction flow, or polished fr
 ## Source of truth
 
 - `.codex-loop/design/DESIGN.md`
+- the selected reference pack under `.codex-loop/design/reference-packs/`
 - approved assets and screenshots
 - the actual UI implementation
 - `.codex-loop/tasks.json`
@@ -12,7 +13,7 @@ Use this mode when the goal is a screen system, interaction flow, or polished fr
 ## Completion bar
 
 - The primary flow is clear before decorative detail.
-- Approved assets or references drive the interface.
+- The selected reference pack and approved assets or references drive the interface.
 - Runtime screenshots prove the UI states touched.
 - The result does not look like generic AI output.
 

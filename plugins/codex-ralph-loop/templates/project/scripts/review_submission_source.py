@@ -66,6 +66,17 @@ def extract_preset(design_text: str) -> str:
     return match.group(1).strip().lower() if match else 'document-editorial'
 
 
+def extract_reference_pack(design_text: str) -> str:
+    match = re.search(r'(?mi)^Reference-Pack:\s*([A-Za-z0-9_-]+)\s*$', design_text or '')
+    return match.group(1).strip().lower() if match else ''
+
+
+def load_reference_pack(root: Path, name: str) -> str:
+    if not name:
+        return ''
+    return read_text(root / '.codex-loop' / 'design' / 'reference-packs' / f'{name}.md')
+
+
 def canonical_mode(mode: str) -> str:
     lowered = (mode or '').strip().lower()
     if lowered in {'proposal', 'submission', 'planning', 'contest', 'deck'}:
@@ -153,6 +164,8 @@ def build_review(root: Path, source_path: Path, mode: str, design_path: Path) ->
     coverage = concept_coverage(text)
     mode_name = canonical_mode(mode)
     preset = extract_preset(design_text)
+    reference_pack = extract_reference_pack(design_text)
+    reference_pack_text = load_reference_pack(root, reference_pack)
     image_refs = text.count('![')
     link_refs = len(re.findall(r'\[[^\]]+\]\([^)]+\)', text))
 
@@ -168,6 +181,8 @@ def build_review(root: Path, source_path: Path, mode: str, design_path: Path) ->
         blockers.append('Placeholder or template markers remain in the source document.')
     if not design_text:
         warnings.append('No design contract was found. Add .codex-loop/design/DESIGN.md so layout decisions stay intentional.')
+    if reference_pack and not reference_pack_text:
+        warnings.append(f'Selected reference pack `{reference_pack}` was not found under .codex-loop/design/reference-packs/.')
     if assistant_hits:
         warnings.append('The source still contains assistant-style narration. Rewrite it in reviewer-facing language.')
 
@@ -184,6 +199,8 @@ def build_review(root: Path, source_path: Path, mode: str, design_path: Path) ->
             warnings.append('Proposal source is missing one or more core narrative blocks such as feasibility, business path, or expected effect.')
         if preset != 'document-editorial':
             warnings.append('Proposal mode should normally use the document-editorial preset.')
+        if not reference_pack:
+            warnings.append('Proposal mode should usually select a reference pack so the visual direction is explicit.')
         if link_refs < 1:
             warnings.append('Consider adding source-backed evidence links or references for reviewer trust.')
     elif mode_name == 'prd':
@@ -198,6 +215,8 @@ def build_review(root: Path, source_path: Path, mode: str, design_path: Path) ->
     elif mode_name == 'product-ui':
         if preset != 'product-ops':
             warnings.append('Product UI mode should usually use the product-ops preset.')
+        if not reference_pack:
+            warnings.append('Product UI mode should select a reference pack before visual polishing begins.')
         if image_refs < 1 and 'assets/' not in text and 'registry' not in text.lower():
             blockers.append('Product UI source should reference actual assets, screenshots, or approved visual inputs.')
         if len(sections) < 4:
@@ -226,6 +245,8 @@ def build_review(root: Path, source_path: Path, mode: str, design_path: Path) ->
         'design': {
             'path': str(design_path.resolve()),
             'preset': preset,
+            'referencePack': reference_pack,
+            'referencePackLoaded': bool(reference_pack_text),
             'present': bool(design_text),
         },
         'stats': {
@@ -255,6 +276,7 @@ def render_review(review: dict[str, Any]) -> str:
         f"- Mode: {review['mode']}",
         f"- File: {review['file']['name']}",
         f"- Design preset: {review['design']['preset']}",
+        f"- Reference pack: {review['design'].get('referencePack') or 'none'}",
         f"- Word count: {review['stats']['wordCount']}",
         f"- Sections: {review['stats']['sectionCount']}",
         f"- Tables: {review['stats']['tableCount']}",

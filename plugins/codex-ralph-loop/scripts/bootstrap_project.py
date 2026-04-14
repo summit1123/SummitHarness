@@ -76,6 +76,7 @@ def main() -> int:
     sync_tree(template_root / '.codex', target_root / '.codex', args.force)
     sync_tree(template_root / '.codex-loop', target_root / '.codex-loop', args.force)
     sync_tree(template_root / 'docs', target_root / 'docs', args.force)
+    sync_tree(plugin_root / 'design-reference-packs', target_root / '.codex-loop' / 'design' / 'reference-packs', args.force)
 
     for name in [
         'codex_ralph.py',
@@ -121,12 +122,13 @@ def main() -> int:
     print('Next steps:')
     print('  1. Run python3 scripts/preflight.py run')
     print('  2. Lock .codex-loop/prd/PRD.md, SUMMARY.md, and .codex-loop/design/DESIGN.md to the real goal')
-    print('  3. If this is a proposal or submission flow, edit docs/submissions/proposal.md first')
-    print('  4. Run python3 scripts/review_submission_source.py docs/submissions/proposal.md')
-    print('  5. Render with python3 scripts/render_markdown_submission.py once the source gate passes')
-    print('  6. Add real local build, lint, test, or screenshot commands in .codex-loop/config.json')
-    print('  7. Use python3 scripts/context_engine.py refresh --source bootstrap to build the first handoff packet')
-    print('  8. Run ./ralph.sh --once or start /ralph-loop inside Codex')
+    print('  3. Pick or customize a reference pack in .codex-loop/design/reference-packs/ and record it in DESIGN.md')
+    print('  4. If this is a proposal or submission flow, edit docs/submissions/proposal.md first')
+    print('  5. Run python3 scripts/review_submission_source.py docs/submissions/proposal.md')
+    print('  6. Render with python3 scripts/render_markdown_submission.py once the source gate passes')
+    print('  7. Add real local build, lint, test, or screenshot commands in .codex-loop/config.json')
+    print('  8. Use python3 scripts/context_engine.py refresh --source bootstrap to build the first handoff packet')
+    print('  9. Run ./ralph.sh --once or start /ralph-loop inside Codex')
     print('     -> the first Ralph run will replace the bootstrap template tasks with a project-specific task graph')
     return 0
 

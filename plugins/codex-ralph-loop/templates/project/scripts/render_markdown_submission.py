@@ -29,6 +29,25 @@ def extract_preset(design_text: str) -> str:
     return match.group(1).strip().lower() if match else 'document-editorial'
 
 
+def extract_reference_pack(design_text: str) -> str:
+    match = re.search(r'(?mi)^Reference-Pack:\s*([A-Za-z0-9_-]+)\s*$', design_text or '')
+    return match.group(1).strip().lower() if match else ''
+
+
+REFERENCE_PACK_TOKENS = {
+    'editorial-signal': {'accent': '#1f6f64', 'surface': '#f4f4f1', 'surface_strong': '#eceae4', 'page_bg': 'white'},
+    'security-console': {'accent': '#8a3b2f', 'surface': '#f6f2ef', 'surface_strong': '#ece4dd', 'page_bg': '#fcfbfa'},
+    'analyst-workbench': {'accent': '#355c7d', 'surface': '#f3f5f7', 'surface_strong': '#e5eaef', 'page_bg': '#fcfcfd'},
+    'citizen-service': {'accent': '#005f73', 'surface': '#f1f6f7', 'surface_strong': '#e0ecef', 'page_bg': 'white'},
+    'devtool-minimal': {'accent': '#334155', 'surface': '#f4f5f6', 'surface_strong': '#e7eaee', 'page_bg': '#fcfcfc'},
+    'consumer-trust': {'accent': '#0f766e', 'surface': '#f2f7f6', 'surface_strong': '#e3efed', 'page_bg': 'white'},
+}
+
+
+def reference_pack_tokens(reference_pack: str) -> dict[str, str]:
+    return REFERENCE_PACK_TOKENS.get(reference_pack or '', {})
+
+
 def extract_title(markdown_text: str) -> str:
     for line in (markdown_text or '').splitlines():
         stripped = line.strip()
@@ -191,22 +210,27 @@ def markdown_to_html(markdown_text: str) -> str:
     return '\n'.join(blocks)
 
 
-def document_styles(preset: str) -> str:
-    common = '''
+def document_styles(preset: str, reference_pack: str = '') -> str:
+    tokens = reference_pack_tokens(reference_pack)
+    accent = tokens.get('accent', '#1f6f64')
+    surface = tokens.get('surface', '#f4f4f1')
+    surface_strong = tokens.get('surface_strong', '#eceae4')
+    page_bg = tokens.get('page_bg', 'white')
+    common = """
 :root {
   --ink: #111111;
   --muted: #5b5b5b;
   --line: #cfcfcf;
-  --surface: #f4f4f1;
-  --surface-strong: #eceae4;
-  --accent: #1f6f64;
+  --surface: __SURFACE__;
+  --surface-strong: __SURFACE_STRONG__;
+  --accent: __ACCENT__;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Segoe UI', sans-serif;
   color: var(--ink);
-  background: white;
+  background: __PAGE_BG__;
   line-height: 1.65;
   font-size: 15px;
 }
@@ -319,39 +343,37 @@ hr {
     break-inside: avoid;
   }
 }
-'''
+"""
+    common = (
+        common.replace('__ACCENT__', accent)
+        .replace('__SURFACE__', surface)
+        .replace('__SURFACE_STRONG__', surface_strong)
+        .replace('__PAGE_BG__', page_bg)
+    )
     if preset == 'product-ops':
-        return common + '''
-:root {
-  --surface: #f2f6f8;
-  --surface-strong: #e3edf0;
-  --accent: #0f7a73;
-}
-body {
-  background: #fbfcfc;
-}
+        return common + """
 h1 {
   border-top-color: var(--accent);
 }
 h2 {
-  border-top-color: #b9d7d4;
+  border-top-color: color-mix(in srgb, var(--accent) 30%, white);
 }
-'''
+"""
     return common
 
-
-def build_html_document(title: str, body_html: str, preset: str) -> str:
+def build_html_document(title: str, body_html: str, preset: str, reference_pack: str = '') -> str:
+    reference_note = f' / {reference_pack}' if reference_pack else ''
     return f'''<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{html.escape(title)}</title>
-    <style>{document_styles(preset)}</style>
+    <style>{document_styles(preset, reference_pack)}</style>
   </head>
   <body>
     <main class="page">
-      <div class="eyebrow">SummitHarness Render</div>
+      <div class="eyebrow">SummitHarness Render{html.escape(reference_note)}</div>
       {body_html}
     </main>
   </body>
@@ -431,9 +453,10 @@ def main() -> int:
     markdown_text = read_text(input_path)
     design_text = read_text(design_path)
     preset = extract_preset(design_text)
+    reference_pack = extract_reference_pack(design_text)
     title = extract_title(markdown_text)
     body_html = markdown_to_html(markdown_text)
-    html_doc = build_html_document(title, body_html, preset)
+    html_doc = build_html_document(title, body_html, preset, reference_pack)
     write_text(html_output, html_doc)
     print(f'Wrote rendered HTML to {html_output}')
 

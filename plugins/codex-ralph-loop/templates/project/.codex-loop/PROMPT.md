@@ -15,6 +15,7 @@ Respect the current operating contract:
 
 - read `.codex-loop/QUALITY_BARS.md` and treat the active quality profile as a hard completion gate
 - read `.codex-loop/design/DESIGN.md` and treat the design contract as a hard style and layout gate
+- read the selected file under `.codex-loop/design/reference-packs/` and treat it as the active visual reference family
 - read `.codex-loop/modes/<active-mode>.md` and obey that mode's source of truth
 - do not declare completion until every MUST item in the active quality profile is satisfied
 
@@ -30,7 +31,7 @@ When the product has a UI:
 
 - define the user flow before polishing surfaces
 - keep spacing, hierarchy, and copy intentional
-- use a coherent visual system with approved assets or references
+- use a coherent visual system with an explicit reference pack plus approved assets or references
 - avoid ornamental noise, random cards, and empty accent shapes
 - if the design still feels generic, improve the design inputs before polishing the code
 - verify behavior in the running app once a UI exists

@@ -47,6 +47,8 @@ class SummitHarnessTests(unittest.TestCase):
             self.assertTrue((root / "scripts" / "review_submission_source.py").exists())
             self.assertTrue((root / "scripts" / "render_markdown_submission.py").exists())
             self.assertTrue((root / ".codex-loop" / "design" / "DESIGN.md").exists())
+            self.assertTrue((root / ".codex-loop" / "design" / "reference-packs" / "security-console.md").exists())
+            self.assertIn('Reference-Pack:', (root / ".codex-loop" / "design" / "DESIGN.md").read_text(encoding='utf-8'))
             self.assertTrue((root / ".codex-loop" / "modes" / "proposal.md").exists())
             self.assertTrue((root / "docs" / "submissions" / "proposal.md").exists())
             self.assertTrue((root / ".codex-loop" / "context" / "durable.json").exists())
@@ -346,6 +348,20 @@ REPLAN: YES
             self.assertIn("proposal.md", status["handoff"])
             self.assertIn("source warnings: 1", status["handoff"].lower())
             self.assertIn("nextBestStep", status)
+
+
+    def test_context_engine_surfaces_reference_pack_in_handoff(self) -> None:
+        mod = load_module(CONTEXT_ENGINE, "context_engine_reference_pack_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            (root / ".codex-loop" / "design" / "DESIGN.md").write_text(
+                "# Design Contract\n\nPreset: product-ops\nReference-Pack: security-console\n",
+                encoding="utf-8",
+            )
+            status = mod.load_status(root, root / ".codex-loop")
+            self.assertEqual(status["referencePack"], "security-console")
+            self.assertIn("security-console", status["handoff"])
 
     def test_loop_can_replan_after_goal_evaluator_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -916,6 +932,13 @@ if __name__ == "__main__":
         self.assertIn("<table>", html)
         self.assertIn("<th>A</th>", html)
 
+
+    def test_markdown_renderer_uses_reference_pack_tokens(self) -> None:
+        mod = load_module(RENDER_MD, "render_markdown_reference_pack_test")
+        css = mod.document_styles('product-ops', 'security-console')
+        self.assertIn('#8a3b2f', css)
+        self.assertIn('var(--accent)', css)
+
     def test_source_review_flags_placeholder_markdown(self) -> None:
         mod = load_module(REVIEW_SOURCE, "review_submission_source_test")
         with tempfile.TemporaryDirectory() as tmp:
@@ -926,11 +949,14 @@ if __name__ == "__main__":
                 "# Sample\n\n## Problem\nReplace this section.\n\n## Solution\nDraft.\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n",
                 encoding="utf-8",
             )
-            design.write_text("Preset: document-editorial\n", encoding="utf-8")
+            design.write_text("Preset: document-editorial\nReference-Pack: editorial-signal\n", encoding="utf-8")
+            (root / '.codex-loop' / 'design' / 'reference-packs').mkdir(parents=True, exist_ok=True)
+            (root / '.codex-loop' / 'design' / 'reference-packs' / 'editorial-signal.md').write_text('# Reference Pack: editorial-signal\n', encoding='utf-8')
 
             review = mod.build_review(root, source, "proposal", design)
 
             self.assertTrue(review["blockers"])
+            self.assertEqual(review['design']['referencePack'], 'editorial-signal')
             self.assertTrue(any("Placeholder" in item or "template markers" in item for item in review["blockers"]))
 
 

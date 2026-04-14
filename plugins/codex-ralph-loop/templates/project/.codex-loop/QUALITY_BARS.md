@@ -104,11 +104,12 @@ Use this when the goal is screen design, interaction flow, or polished front-end
 - Screen structure and state transitions are explicit.
 
 2. Visual system
-- The design contract is specific about spacing, hierarchy, assets, and banned patterns.
+- The design contract is specific about spacing, hierarchy, assets, banned patterns, and the selected reference pack.
 - The UI does not look like generic AI output.
 
 3. Asset grounding
 - Use approved assets, screenshots, references, or generated inputs intentionally.
+- Keep the selected reference pack aligned with those assets instead of mixing unrelated styles.
 - Record what each asset is for and whether it is approved for proposal, app, or both.
 
 4. Verification
