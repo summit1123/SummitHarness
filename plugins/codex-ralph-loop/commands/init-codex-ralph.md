@@ -23,3 +23,4 @@ Initialize the current project with SummitHarness runtime files.
 
 - Use `--force` only when you intentionally want to replace existing runtime files.
 - The plugin stays reusable; the seeded `.codex-loop/` becomes project-owned state.
+- If the current repo is the SummitHarness source/plugin repo itself, do not run this in place unless the user explicitly wants to modify the harness inside that repo.
