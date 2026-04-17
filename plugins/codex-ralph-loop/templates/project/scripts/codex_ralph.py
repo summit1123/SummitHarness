@@ -23,6 +23,9 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from context_engine import ensure_context_layout, refresh_context
+from summit_intake import load_intake_status, intake_gate_message
+from summit_research import load_research_status, research_gate_message
+from summit_start import load_workflow_status, workflow_seed_gate_message, workflow_status_block, workflow_summary, workflow_profile_text, workflow_status_text
 
 
 COMPLETE_EXIT = 0
@@ -38,11 +41,19 @@ EVAL_STATUS_RE = re.compile(r"STATUS:\s*(COMPLETE|INCOMPLETE|BLOCKED|DECIDE)", r
 PRIORITY_ORDER = {"p0": 0, "p1": 1, "p2": 2, "p3": 3}
 OPEN_TASK_STATUSES = {"todo", "in_progress", "pending", "open"}
 NEXT_TASK_STATUSES = {"todo", "pending", "open"}
-DEFAULT_TEMPLATE_TASK_TITLES = {
-    "Brainstorm and lock the build brief",
-    "Write the first execution plan",
-    "Build and verify the first vertical slice",
-}
+DEFAULT_TEMPLATE_PROJECT_NAMES = {"Codex Ralph Loop Workspace", "Codex Ralph Loop 작업공간"}
+DEFAULT_TEMPLATE_TASK_TITLE_SETS = [
+    {
+        "Brainstorm and lock the build brief",
+        "Write the first execution plan",
+        "Build and verify the first vertical slice",
+    },
+    {
+        "빌드 브리프를 정리하고 확정하기",
+        "첫 실행 계획 작성하기",
+        "첫 번째 수직 슬라이스 구현 및 검증하기",
+    },
+]
 KNOWN_QUALITY_PROFILES = {"development", "proposal", "prd", "product-ui"}
 
 DEFAULT_CONFIG: dict[str, Any] = {
@@ -86,6 +97,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "max_iterations": 8,
         "mode": "implementation",
         "auto_seed_tasks": True,
+        "require_intake_approval": True,
+        "require_research_plan": True,
     },
     "checks": {
         "commands": [],
@@ -179,16 +192,70 @@ def heartbeat_seconds(config: dict[str, Any]) -> float:
 def format_timeout_summary(label: str, result: dict[str, Any]) -> str:
     duration = float(result.get("durationSeconds", 0.0))
     log_path = result.get("logPath", "")
-    return f"{label} timed out after {duration:.1f}s. See {log_path}."
+    return f"{label} 이(가) {duration:.1f}s 후 타임아웃되었습니다. 로그: {log_path}"
+
+
+def intake_approval_required(config: dict[str, Any]) -> bool:
+    return bool(config.get("loop", {}).get("require_intake_approval", True))
+
+
+def intake_lock_summary(state_dir: Path) -> str:
+    status = load_intake_status(state_dir)
+    lines = status.get("lockSummary", []) or ["- 아직 승인된 인테이크 잠금 정보가 없습니다."]
+    return "\n".join(lines)
+
+
+def intake_answers_text(state_dir: Path) -> str:
+    return read_text(state_dir / "intake" / "ANSWERS.md") or "아직 인테이크 답변 문서가 없습니다."
+
+
+def intake_approval_text(state_dir: Path) -> str:
+    return read_text(state_dir / "intake" / "APPROVAL.md") or "아직 인테이크 승인 문서가 없습니다."
+
+
+def intake_status_block(state_dir: Path) -> str:
+    status = load_intake_status(state_dir)
+    missing = ", ".join(status.get("missing", [])[:4]) or "없음"
+    approved_text = "예" if status.get("approved") else "아니오"
+    return f"- 인테이크 모드: {status.get('mode', 'implementation')}\n- 인테이크 상태: {status.get('status', 'pending')}\n- 인테이크 승인: {approved_text}\n- 누락: {missing}"
+
+
+def research_plan_required(config: dict[str, Any]) -> bool:
+    return bool(config.get("loop", {}).get("require_research_plan", True))
+
+
+def research_summary(state_dir: Path) -> str:
+    status = load_research_status(state_dir)
+    lines = status.get("summary", []) or ["- 아직 승인된 리서치 계획 요약이 없습니다."]
+    return "\n".join(lines)
+
+
+def research_plan_text(state_dir: Path) -> str:
+    return read_text(state_dir / "research" / "PLAN.md") or "아직 단계형 리서치 계획 문서가 없습니다."
+
+
+def research_findings_text(state_dir: Path) -> str:
+    return read_text(state_dir / "research" / "FINDINGS.md") or "아직 리서치 결과 문서가 없습니다."
+
+
+def research_approval_text(state_dir: Path) -> str:
+    return read_text(state_dir / "research" / "APPROVAL.md") or "아직 리서치 승인 문서가 없습니다."
+
+
+def research_status_block(state_dir: Path) -> str:
+    status = load_research_status(state_dir)
+    missing = ", ".join(status.get("missing", [])[:4]) or "없음"
+    approved_text = "예" if status.get("approved") else "아니오"
+    return f"- 리서치 모드: {status.get('mode', 'implementation')}\n- 리서치 상태: {status.get('status', 'pending')}\n- 리서치 승인: {approved_text}\n- 누락: {missing}"
 
 
 def load_mode_contract(state_dir: Path, config: dict[str, Any]) -> str:
     mode_name = active_mode_name(config)
-    return read_text(state_dir / "modes" / f"{mode_name}.md") or "No mode contract was defined."
+    return read_text(state_dir / "modes" / f"{mode_name}.md") or "아직 모드 계약 문서가 없습니다."
 
 
 def load_design_contract(state_dir: Path) -> str:
-    return read_text(state_dir / "design" / "DESIGN.md") or "No design contract was defined."
+    return read_text(state_dir / "design" / "DESIGN.md") or "아직 디자인 계약 문서가 없습니다."
 
 
 def extract_reference_pack(design_contract: str) -> str:
@@ -199,7 +266,7 @@ def extract_reference_pack(design_contract: str) -> str:
 def load_reference_pack_contract(state_dir: Path, design_contract: str) -> tuple[str, str]:
     pack_name = extract_reference_pack(design_contract)
     if not pack_name:
-        return '', 'No reference pack selected.'
+        return '', '선택된 레퍼런스 팩이 없습니다.'
     pack_text = read_text(state_dir / 'design' / 'reference-packs' / f'{pack_name}.md')
     if not pack_text:
         return pack_name, f'Reference pack `{pack_name}` was selected but no file was found under .codex-loop/design/reference-packs/.'
@@ -230,7 +297,7 @@ def load_quality_bars(state_dir: Path) -> str:
     return (
         read_text(state_dir / "QUALITY_BARS.md")
         or read_text(state_dir / "QUALITY_BAR.md")
-        or "No quality bars were defined."
+        or "아직 품질 기준 문서가 없습니다."
     )
 
 
@@ -415,7 +482,7 @@ def tasks_need_seed(tasks_index: dict[str, Any], tasks: list[dict[str, Any]]) ->
 
     project = str(tasks_index.get("project", "")).strip()
     titles = {str(task.get("title", "")).strip() for task in tasks if str(task.get("title", "")).strip()}
-    if project == "Codex Ralph Loop Workspace" and titles == DEFAULT_TEMPLATE_TASK_TITLES:
+    if project in DEFAULT_TEMPLATE_PROJECT_NAMES and any(titles == title_set for title_set in DEFAULT_TEMPLATE_TASK_TITLE_SETS):
         return True
 
     return False
@@ -548,8 +615,8 @@ def build_task_seed_prompt(
     prompt_md = read_text(state_dir / "PROMPT.md")
     prd_md = read_text(state_dir / "prd" / "PRD.md")
     summary_md = read_text(state_dir / "prd" / "SUMMARY.md")
-    handoff_md = read_text(state_dir / "context" / "handoff.md") or "No compressed handoff exists yet."
-    steering_block = steering_text or "No active steering notes."
+    handoff_md = read_text(state_dir / "context" / "handoff.md") or "아직 압축 handoff 문서가 없습니다."
+    steering_block = steering_text or "현재 활성 스티어링 메모가 없습니다."
     git_note = (
         "Git is available. Replace the template task graph with a real one and keep the files synchronized."
         if git_available
@@ -563,10 +630,29 @@ def build_task_seed_prompt(
     design_contract = load_design_contract(state_dir)
     reference_pack_name, reference_pack_contract = load_reference_pack_contract(state_dir, design_contract)
     source_of_truth = mode_source_of_truth(mode_name)
+    intake_status_text = intake_status_block(state_dir)
+    intake_lock_text = intake_lock_summary(state_dir)
+    intake_answers = intake_answers_text(state_dir)
+    intake_approval = intake_approval_text(state_dir)
+    research_status_text = research_status_block(state_dir)
+    research_summary_text = research_summary(state_dir)
+    research_plan = research_plan_text(state_dir)
+    research_findings = research_findings_text(state_dir)
+    research_approval = research_approval_text(state_dir)
+    workflow_status_text_block = workflow_status_block(state_dir)
+    workflow_summary_text = workflow_summary(state_dir)
+    workflow_profile = workflow_profile_text(state_dir)
+    workflow_status_doc = workflow_status_text(state_dir)
 
     return f'''You are initializing the SummitHarness task graph for the first real loop run.
 
-Mode: {config['loop']['mode']} (canonical: {mode_name})
+HARD SEED CONSTRAINTS:
+- Treat the prompt as the main context bundle. Do not re-inventory the workspace unless a specific file must be edited.
+- Do not run `rg --files .codex-loop`, `find .codex-loop`, broad repo listings, or harness-runtime source reads during normal seed planning.
+- Within your first 6 tool actions, you should already be rewriting `tasks.json` or `TASK-*.json`.
+- If the workspace is a harness or validation scaffold, write truthful harness-validation tasks instead of inventing product work.
+
+모드: {config['loop']['mode']} (기준 모드: {mode_name})
 Promise contract:
 - Emit <promise>DECIDE:question</promise> only if a critical ambiguity blocks trustworthy planning.
 - Emit <promise>BLOCKED:reason</promise> only if you truly cannot proceed.
@@ -592,35 +678,82 @@ Planning rules:
 - Do not keep the default sample tasks unless they genuinely match the project.
 - Do not implement the product itself in this bootstrap step unless a tiny edit is required to clarify planning state.
 - Prefer high-signal files like the PRD, summary, docs, approved assets, and tests before crawling unrelated parts of the repo.
-- Stop exploring once you have enough evidence to write a trustworthy first task graph.
+- In a seed run, inspect only the minimum evidence needed to write the task graph. Start with PRD, SUMMARY, handoff, approved intake/research docs, workflow status, and current task files.
+- Do not inspect runtime helper code such as `scripts/codex_ralph.py`, `scripts/summit_start.py`, or other harness internals unless the project goal is to modify the harness itself.
+- If this repo is mainly a harness scaffold, write harness-validation tasks that reflect the real goal instead of inventing product features.
+- Start editing after at most 6 inspection commands. Do not keep browsing once you can draft a truthful task graph.
+- Write files in this order unless blocked: `tasks.json` -> `tasks/TASK-*.json` -> `PRD.md` / `SUMMARY.md`.
+- Mark exactly one clearly runnable first task as `in_progress`. Mark later tasks as `todo` unless there is explicit evidence they are already complete.
+- The prompt already contains the approved intake, research, workflow, PRD, summary, and handoff context. Do not re-inventory the whole `.codex-loop` tree unless you are blocked by missing file content.
+- Forbidden during normal seed planning: `rg --files .codex-loop`, listing reference-pack directories, reading harness runtime helpers, or scanning the repo root just to orient yourself.
+- Preferred first action: read `.codex-loop/tasks.json` and the existing `TASK-*.json` files only if you need their exact shape, then start rewriting them immediately.
 - {git_note}
 - {scaffold_note}
 
-Compressed context packet:
+압축 컨텍스트 패킷:
 {handoff_md}
 
-Base prompt:
+기본 프롬프트:
 {prompt_md}
 
-Mode contract:
+모드 계약:
 {mode_contract}
 
-Design contract:
+디자인 계약:
 {design_contract}
 
-Active reference pack:
+현재 레퍼런스 팩:
 {reference_pack_name or 'none'}
 
-Reference pack contract:
+레퍼런스 팩 계약:
 {reference_pack_contract}
 
-Current PRD:
+현재 PRD:
 {prd_md}
 
-Current summary:
+현재 요약:
 {summary_md}
 
-Steering:
+인테이크 상태:
+{intake_status_text}
+
+확정 인테이크 요약:
+{intake_lock_text}
+
+인테이크 답변:
+{intake_answers}
+
+인테이크 승인:
+{intake_approval}
+
+리서치 상태:
+{research_status_text}
+
+확정 리서치 요약:
+{research_summary_text}
+
+리서치 계획:
+{research_plan}
+
+리서치 결과:
+{research_findings}
+
+리서치 승인:
+{research_approval}
+
+워크플로우 상태:
+{workflow_status_text_block}
+
+워크플로우 요약:
+{workflow_summary_text}
+
+워크플로우 프로필 문서:
+{workflow_profile}
+
+워크플로우 상태 문서:
+{workflow_status_doc}
+
+스티어링:
 {steering_block}
 '''
 
@@ -637,10 +770,10 @@ def build_worker_prompt(
 ) -> str:
     prompt_md = read_text(state_dir / "PROMPT.md")
     summary_md = read_text(state_dir / "prd" / "SUMMARY.md")
-    handoff_md = read_text(state_dir / "context" / "handoff.md") or "No compressed handoff exists yet."
+    handoff_md = read_text(state_dir / "context" / "handoff.md") or "아직 압축 handoff 문서가 없습니다."
     task_index = json.dumps(task, ensure_ascii=False, indent=2) if task else "{}"
     task_spec = json.dumps(task_body or {}, ensure_ascii=False, indent=2)
-    steering_block = steering_text or "No active steering notes."
+    steering_block = steering_text or "현재 활성 스티어링 메모가 없습니다."
     git_note = (
         "Git is available. Prefer small, reviewable changes and keep task state in sync."
         if git_available
@@ -654,11 +787,17 @@ def build_worker_prompt(
     reference_pack_name, reference_pack_contract = load_reference_pack_contract(state_dir, design_contract)
     source_of_truth = mode_source_of_truth(mode_name)
     execution_focus = mode_execution_focus(mode_name)
+    intake_status_text = intake_status_block(state_dir)
+    intake_lock_text = intake_lock_summary(state_dir)
+    research_status_text = research_status_block(state_dir)
+    research_summary_text = research_summary(state_dir)
+    workflow_status_text_block = workflow_status_block(state_dir)
+    workflow_summary_text = workflow_summary(state_dir)
 
     return f"""You are inside a long-running SummitHarness Codex loop.
 
 Iteration: {iteration}
-Mode: {config['loop']['mode']} (canonical: {mode_name})
+모드: {config['loop']['mode']} (기준 모드: {mode_name})
 Promise contract:
 - Emit <promise>BLOCKED:reason</promise> only when you truly need human help.
 - Emit <promise>DECIDE:question</promise> only when a human decision is unavoidable.
@@ -673,31 +812,49 @@ Loop expectations:
 - Source-of-truth reminder: {source_of_truth}
 - If the design is still generic, improve the design inputs before polishing implementation details.
 
-Mode-specific execution focus:
+모드별 실행 초점:
 {execution_focus}
 
-Compressed context packet:
+압축 컨텍스트 패킷:
 {handoff_md}
 
-Base prompt:
+기본 프롬프트:
 {prompt_md}
 
-Project summary:
+프로젝트 요약:
 {summary_md}
 
-Mode contract:
+인테이크 상태:
+{intake_status_text}
+
+확정 인테이크 요약:
+{intake_lock_text}
+
+리서치 상태:
+{research_status_text}
+
+확정 리서치 요약:
+{research_summary_text}
+
+워크플로우 상태:
+{workflow_status_text_block}
+
+워크플로우 요약:
+{workflow_summary_text}
+
+모드 계약:
 {mode_contract}
 
-Design contract:
+디자인 계약:
 {design_contract}
 
-Active reference pack:
+현재 레퍼런스 팩:
 {reference_pack_name or 'none'}
 
-Reference pack contract:
+레퍼런스 팩 계약:
 {reference_pack_contract}
 
-Active quality profile:
+현재 품질 프로필:
 {quality_profile_name}
 
 Quality bars:
@@ -713,7 +870,7 @@ Active task spec:
 {task_spec}
 ```
 
-Steering:
+스티어링:
 {steering_block}
 """
 
@@ -752,28 +909,28 @@ Ignore style-only nits.
 Keep the review short and severe-only.
 Limit yourself to at most {int(config['review'].get('max_findings', 5))} findings.
 
-Compressed context packet:
-{handoff_md or 'No compressed handoff exists yet.'}
+압축 컨텍스트 패킷:
+{handoff_md or '아직 압축 handoff 문서가 없습니다.'}
 
-Project summary:
+프로젝트 요약:
 {summary_md}
 
 Source-of-truth reminder:
 {source_of_truth}
 
-Mode contract:
+모드 계약:
 {mode_contract}
 
-Design contract:
+디자인 계약:
 {design_contract}
 
-Active reference pack:
+현재 레퍼런스 팩:
 {reference_pack_name or 'none'}
 
-Reference pack contract:
+레퍼런스 팩 계약:
 {reference_pack_contract}
 
-Active quality profile:
+현재 품질 프로필:
 {quality_profile_name}
 
 Quality bars:
@@ -813,7 +970,7 @@ def build_goal_eval_prompt(
 ) -> str:
     prd_md = read_text(state_dir / "prd" / "PRD.md")
     summary_md = read_text(state_dir / "prd" / "SUMMARY.md")
-    handoff_md = read_text(state_dir / "context" / "handoff.md") or "No compressed handoff exists yet."
+    handoff_md = read_text(state_dir / "context" / "handoff.md") or "아직 압축 handoff 문서가 없습니다."
     tasks_index = load_tasks_index(state_dir)
     task_graph = json.dumps(tasks_index, ensure_ascii=False, indent=2)
     task_index = json.dumps(task, ensure_ascii=False, indent=2) if task else "{}"
@@ -825,6 +982,12 @@ def build_goal_eval_prompt(
     design_contract = load_design_contract(state_dir)
     reference_pack_name, reference_pack_contract = load_reference_pack_contract(state_dir, design_contract)
     source_of_truth = mode_source_of_truth(mode_name)
+    intake_status_text = intake_status_block(state_dir)
+    intake_lock_text = intake_lock_summary(state_dir)
+    research_status_text = research_status_block(state_dir)
+    research_summary_text = research_summary(state_dir)
+    workflow_status_text_block = workflow_status_block(state_dir)
+    workflow_summary_text = workflow_summary(state_dir)
 
     return f"""You are the goal evaluator for a SummitHarness Codex loop. Work read-only.
 
@@ -836,37 +999,55 @@ Focus on:
 - false completion claims
 - violations of the mode contract, design contract, or active quality profile
 
-Project summary:
+프로젝트 요약:
 {summary_md}
 
-Current PRD:
+현재 PRD:
 {prd_md}
+
+인테이크 상태:
+{intake_status_text}
+
+확정 인테이크 요약:
+{intake_lock_text}
+
+리서치 상태:
+{research_status_text}
+
+확정 리서치 요약:
+{research_summary_text}
+
+워크플로우 상태:
+{workflow_status_text_block}
+
+워크플로우 요약:
+{workflow_summary_text}
 
 Source-of-truth reminder:
 {source_of_truth}
 
-Mode contract:
+모드 계약:
 {mode_contract}
 
-Design contract:
+디자인 계약:
 {design_contract}
 
-Active reference pack:
+현재 레퍼런스 팩:
 {reference_pack_name or 'none'}
 
-Reference pack contract:
+레퍼런스 팩 계약:
 {reference_pack_contract}
 
-Active quality profile:
+현재 품질 프로필:
 {quality_profile_name}
 
 Quality bars:
 {quality_bars}
 
-Compressed context packet:
+압축 컨텍스트 패킷:
 {handoff_md}
 
-Current task graph:
+현재 task 그래프:
 ```json
 {task_graph}
 ```
@@ -917,10 +1098,10 @@ def build_task_replan_prompt(
     prompt_md = read_text(state_dir / "PROMPT.md")
     prd_md = read_text(state_dir / "prd" / "PRD.md")
     summary_md = read_text(state_dir / "prd" / "SUMMARY.md")
-    handoff_md = read_text(state_dir / "context" / "handoff.md") or "No compressed handoff exists yet."
+    handoff_md = read_text(state_dir / "context" / "handoff.md") or "아직 압축 handoff 문서가 없습니다."
     tasks_index = load_tasks_index(state_dir)
     task_graph = json.dumps(tasks_index, ensure_ascii=False, indent=2)
-    steering_block = steering_text or "No active steering notes."
+    steering_block = steering_text or "현재 활성 스티어링 메모가 없습니다."
     git_note = (
         "Git is available. Refresh the task graph in place and keep completed work accurately marked."
         if git_available
@@ -931,10 +1112,16 @@ def build_task_replan_prompt(
     design_contract = load_design_contract(state_dir)
     reference_pack_name, reference_pack_contract = load_reference_pack_contract(state_dir, design_contract)
     source_of_truth = mode_source_of_truth(mode_name)
+    intake_status_text = intake_status_block(state_dir)
+    intake_lock_text = intake_lock_summary(state_dir)
+    research_status_text = research_status_block(state_dir)
+    research_summary_text = research_summary(state_dir)
+    workflow_status_text_block = workflow_status_block(state_dir)
+    workflow_summary_text = workflow_summary(state_dir)
 
     return f"""You are refreshing the SummitHarness task graph because the goal evaluator found remaining work.
 
-Mode: {config['loop']['mode']} (canonical: {mode_name})
+모드: {config['loop']['mode']} (기준 모드: {mode_name})
 Promise contract:
 - Emit <promise>DECIDE:question</promise> only if a critical ambiguity blocks trustworthy replanning.
 - Emit <promise>BLOCKED:reason</promise> only if you truly cannot proceed.
@@ -955,39 +1142,63 @@ Required outcomes:
 Goal evaluator verdict:
 RESULT: {'PASS' if evaluation.get('passed') else 'FAIL'}
 STATUS: {evaluation.get('status', 'INCOMPLETE')}
-SUMMARY: {evaluation.get('summary', 'No evaluator summary available.')}
-NEXT: {evaluation.get('next', 'No next step provided.')}
+SUMMARY: {evaluation.get('summary', '아직 evaluator 요약이 없습니다.')}
+NEXT: {evaluation.get('next', '다음 단계 안내가 없습니다.')}
 
-Current task graph:
+인테이크 상태:
+{intake_status_text}
+
+확정 인테이크 요약:
+{intake_lock_text}
+
+리서치 상태:
+{research_status_text}
+
+확정 리서치 요약:
+{research_summary_text}
+
+워크플로우 상태:
+{workflow_status_text_block}
+
+워크플로우 요약:
+{workflow_summary_text}
+
+현재 task 그래프:
 ```json
 {task_graph}
 ```
 
-Compressed context packet:
+압축 컨텍스트 패킷:
 {handoff_md}
 
-Base prompt:
+기본 프롬프트:
 {prompt_md}
 
-Mode contract:
+모드 계약:
 {mode_contract}
 
-Design contract:
+디자인 계약:
 {design_contract}
 
-Active reference pack:
+현재 레퍼런스 팩:
 {reference_pack_name or 'none'}
 
-Reference pack contract:
+레퍼런스 팩 계약:
 {reference_pack_contract}
 
-Current PRD:
+현재 PRD:
 {prd_md}
 
-Current summary:
+현재 요약:
 {summary_md}
 
-Steering:
+인테이크 상태:
+{intake_status_text}
+
+확정 인테이크 요약:
+{intake_lock_text}
+
+스티어링:
 {steering_block}
 """
 
@@ -1238,7 +1449,7 @@ def run_checks(
     stop_on_failure: bool,
 ) -> dict[str, Any]:
     if not commands:
-        return {"passed": True, "summary": "No local checks configured.", "results": []}
+        return {"passed": True, "summary": "설정된 로컬 검증 명령이 없습니다.", "results": []}
 
     results = []
     lines = []
@@ -1301,12 +1512,12 @@ def append_loop_log(
 
     entry = [
         f"## Iteration {iteration} - {now_iso()}",
-        f"- Task: {task.get('id')} {task.get('title')}" if task else "- Task: none",
+        f"- Task: {task.get('id')} {task.get('title')}" if task else "- Task: 없음",
         f"- Promise: {promise or 'none'}",
         f"- Checks: {checks_summary}",
         f"- Review: {review_summary}",
         f"- Goal Eval: {eval_summary}",
-        f"- Summary: {message or 'No assistant summary captured.'}",
+        f"- Summary: {message or '아직 assistant 요약이 없습니다.'}",
         "",
     ]
     with log_path.open("a", encoding="utf-8") as handle:
@@ -1314,7 +1525,7 @@ def append_loop_log(
 
 
 def ensure_state_dirs(state_dir: Path) -> None:
-    for rel in ["history", "reviews", "evals", "artifacts", "logs", "prd", "tasks", "assets", "preflight", "context"]:
+    for rel in ["history", "reviews", "evals", "artifacts", "logs", "prd", "tasks", "assets", "preflight", "context", "intake", "research"]:
         (state_dir / rel).mkdir(parents=True, exist_ok=True)
 
 
@@ -1363,6 +1574,23 @@ def main() -> int:
         return ERROR_EXIT
 
     maybe_refresh_context(project_root, state_dir, config, "loop-start")
+
+    if bool(config["loop"].get("auto_seed_tasks", True)) and tasks_need_seed(tasks_index, tasks):
+        intake_status = load_intake_status(state_dir)
+        if intake_approval_required(config) and not bool(intake_status.get("approved")):
+            maybe_refresh_context(project_root, state_dir, config, "intake-pending")
+            print(intake_gate_message(intake_status))
+            return DECIDE_EXIT
+        research_status = load_research_status(state_dir)
+        if research_plan_required(config) and not bool(research_status.get("approved")):
+            maybe_refresh_context(project_root, state_dir, config, "research-pending")
+            print(research_gate_message(research_status))
+            return DECIDE_EXIT
+        workflow_status = load_workflow_status(state_dir)
+        if workflow_status.get("initialized") and not bool(workflow_status.get("seedReady")):
+            maybe_refresh_context(project_root, state_dir, config, "workflow-pre-seed")
+            print(workflow_seed_gate_message(workflow_status))
+            return DECIDE_EXIT
 
     if bool(config["loop"].get("auto_seed_tasks", True)) and tasks_need_seed(tasks_index, tasks):
         seed_last_message = state_dir / "history" / "seed-worker-last.md"
@@ -1417,7 +1645,7 @@ def main() -> int:
             "passed": True,
             "status": "COMPLETE",
             "summary": "Goal evaluator skipped.",
-            "next": "No evaluator configured.",
+            "next": "evaluator가 설정되어 있지 않습니다.",
         }
         if evaluator_enabled:
             evaluation = run_goal_evaluator(
@@ -1444,7 +1672,7 @@ def main() -> int:
                     "reviewSummary": "Not run.",
                     "evalPassed": bool(evaluation.get("passed")),
                     "evalStatus": evaluation.get("status", "INCOMPLETE"),
-                    "evalSummary": evaluation.get("summary", "No evaluator summary."),
+                    "evalSummary": evaluation.get("summary", "evaluator 요약이 없습니다."),
                     "allTasksComplete": all_tasks_complete(tasks),
                     "gitAvailable": git_available,
                 },
@@ -1500,7 +1728,7 @@ def main() -> int:
 
         if task is None and not all_tasks_complete(tasks):
             blocked = blocked_tasks(tasks, specs)
-            summary = "No runnable task was found. Dependencies may be unresolved or cyclic."
+            summary = "실행 가능한 task를 찾지 못했습니다. dependency가 아직 풀리지 않았거나 순환 구조일 수 있습니다."
             append_loop_log(
                 state_dir,
                 iteration=iteration,
@@ -1640,7 +1868,7 @@ def main() -> int:
             "reviewSummary": review_summary,
             "evalPassed": False,
             "evalStatus": "INCOMPLETE",
-            "evalSummary": "Pending goal evaluation for this iteration.",
+            "evalSummary": "이번 반복에 대한 goal 평가가 아직 진행되지 않았습니다.",
             "evalNext": "",
             "allTasksComplete": all_tasks_complete(tasks),
             "gitAvailable": git_available,
@@ -1653,7 +1881,7 @@ def main() -> int:
             "passed": True,
             "status": "COMPLETE",
             "summary": "Goal evaluator skipped.",
-            "next": "No evaluator configured.",
+            "next": "evaluator가 설정되어 있지 않습니다.",
         }
         if evaluator_enabled:
             evaluation = run_goal_evaluator(
@@ -1692,7 +1920,7 @@ def main() -> int:
                 return ERROR_EXIT
 
         require_eval_pass = evaluator_enabled and evaluator_required
-        eval_summary = evaluation.get("summary", "No evaluator summary.")
+        eval_summary = evaluation.get("summary", "evaluator 요약이 없습니다.")
         if replan_summary:
             eval_summary = f"{eval_summary} Replan: {replan_summary}"
         finished = all_tasks_complete(tasks) and checks["passed"] and review_passed and (not require_eval_pass or (bool(evaluation.get("passed")) and str(evaluation.get("status", "COMPLETE")).upper() == "COMPLETE"))

@@ -9,6 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from summit_intake import load_intake_status, intake_gate_message
+from summit_research import load_research_status, research_gate_message
+from summit_start import load_workflow_status, workflow_seed_gate_message
+
 
 PRIORITY_ORDER = {'p0': 0, 'p1': 1, 'p2': 2, 'p3': 3}
 DEFAULT_DURABLE = {
@@ -22,11 +26,19 @@ DEFAULT_OPEN_QUESTIONS = {'questions': [], 'updatedAt': None}
 DEFAULT_ASSET_REGISTRY = {'assets': [], 'updatedAt': None}
 DONE_STATUSES = {'done', 'completed', 'complete', 'skipped'}
 NEXT_TASK_STATUSES = {'todo', 'pending', 'open'}
-DEFAULT_TEMPLATE_TASK_TITLES = {
-    'Brainstorm and lock the build brief',
-    'Write the first execution plan',
-    'Build and verify the first vertical slice',
-}
+DEFAULT_TEMPLATE_PROJECT_NAMES = {'Codex Ralph Loop Workspace', 'Codex Ralph Loop 작업공간'}
+DEFAULT_TEMPLATE_TASK_TITLE_SETS = [
+    {
+        'Brainstorm and lock the build brief',
+        'Write the first execution plan',
+        'Build and verify the first vertical slice',
+    },
+    {
+        '빌드 브리프를 정리하고 확정하기',
+        '첫 실행 계획 작성하기',
+        '첫 번째 수직 슬라이스 구현 및 검증하기',
+    },
+]
 
 
 def now_iso() -> str:
@@ -92,7 +104,7 @@ def context_dir_from(state_dir: Path) -> Path:
 
 def ensure_context_layout(project_root: Path, state_dir: Path) -> None:
     _ = project_root
-    for rel in ['context', 'preflight', 'assets', 'logs', 'history', 'reviews', 'evals', 'artifacts']:
+    for rel in ['context', 'preflight', 'assets', 'logs', 'history', 'reviews', 'evals', 'artifacts', 'intake', 'research', 'workflow']:
         (state_dir / rel).mkdir(parents=True, exist_ok=True)
 
     durable_path = context_dir_from(state_dir) / 'durable.json'
@@ -131,7 +143,7 @@ def tasks_need_seed(tasks_index: dict[str, Any], tasks: list[dict[str, Any]]) ->
         return True
     project = str(tasks_index.get('project', '')).strip()
     titles = {str(task.get('title', '')).strip() for task in tasks if str(task.get('title', '')).strip()}
-    return project == 'Codex Ralph Loop Workspace' and titles == DEFAULT_TEMPLATE_TASK_TITLES
+    return project in DEFAULT_TEMPLATE_PROJECT_NAMES and any(titles == title_set for title_set in DEFAULT_TEMPLATE_TASK_TITLE_SETS)
 
 
 def task_file_path(state_dir: Path, task: dict[str, Any]) -> Path:
@@ -266,7 +278,7 @@ def first_bullet(lines: list[str]) -> str:
             saw_promise = True
             continue
         return stripped
-    return 'Completion promise emitted.' if saw_promise else 'No summary available.'
+    return '완료 promise가 출력되었습니다.' if saw_promise else '요약이 없습니다.'
 
 
 def summarize_iteration_block(lines: list[str]) -> str:
@@ -277,7 +289,7 @@ def summarize_iteration_block(lines: list[str]) -> str:
             if summary and not is_promise_only_text(summary):
                 return summary
             if summary:
-                return 'Completion promise emitted.'
+                return '완료 promise가 출력되었습니다.'
     skip_prefixes = ('- task:', '- promise:', '- checks:', '- review:', '- goal eval:')
     for line in lines:
         stripped = line.strip()
@@ -307,9 +319,9 @@ def summarize_assets(state_dir: Path) -> list[str]:
     lines = []
     for asset in approved[:6]:
         title = asset.get('title') or asset.get('path') or 'asset'
-        kind = asset.get('kind', 'unknown')
+        kind = asset.get('kind', '알 수 없음')
         role = asset.get('role', 'reference')
-        source = asset.get('source', 'unknown')
+        source = asset.get('source', '알 수 없음')
         lines.append(f'- {title} ({kind}, role={role}, source={source})')
     return lines
 
@@ -334,16 +346,16 @@ def summarize_source_review(state_dir: Path) -> tuple[list[str], list[str]]:
     blockers = payload.get('blockers', []) if isinstance(payload.get('blockers'), list) else []
     warnings = payload.get('warnings', []) if isinstance(payload.get('warnings'), list) else []
     lines = [
-        f"- Latest source review: {payload.get('file', {}).get('name', 'unknown')} ({payload.get('mode', 'unknown')} mode)",
-        f"- Source blockers: {len(blockers)}",
-        f"- Source warnings: {len(warnings)}",
-        f"- Word count: {stats.get('wordCount', 'unknown')}",
-        f"- Tables: {stats.get('tableCount', 'unknown')}",
+        f"- 최신 원고 리뷰: {payload.get('file', {}).get('name', '알 수 없음')} ({payload.get('mode', '알 수 없음')} 모드)",
+        f"- 원고 차단 이슈: {len(blockers)}",
+        f"- 원고 경고: {len(warnings)}",
+        f"- 글자 수: {stats.get('wordCount', '알 수 없음')}",
+        f"- 표 수: {stats.get('tableCount', '알 수 없음')}",
     ]
     if blockers:
-        lines.append(f'- Top blocker: {blockers[0]}')
+        lines.append(f'- 주요 차단 이슈: {blockers[0]}')
     elif warnings:
-        lines.append(f'- Top warning: {warnings[0]}')
+        lines.append(f'- 주요 경고: {warnings[0]}')
     return lines, blockers
 
 
@@ -356,14 +368,14 @@ def summarize_pdf_review(state_dir: Path) -> tuple[list[str], list[str]]:
     blockers = payload.get('blockers', []) if isinstance(payload.get('blockers'), list) else []
     warnings = payload.get('warnings', []) if isinstance(payload.get('warnings'), list) else []
     lines = [
-        f"- Latest PDF review: {info.get('name', 'unknown')} ({info.get('sizeMegabytes', 'n/a')} MB, {metadata.get('pages', 'unknown')} pages)",
+        f"- 최신 PDF 리뷰: {info.get('name', '알 수 없음')} ({info.get('sizeMegabytes', 'n/a')} MB, {metadata.get('pages', '알 수 없음')} 페이지)",
         f"- PDF blockers: {len(blockers)}",
         f"- PDF warnings: {len(warnings)}",
     ]
     if blockers:
-        lines.append(f'- Top blocker: {blockers[0]}')
+        lines.append(f'- 주요 차단 이슈: {blockers[0]}')
     elif warnings:
-        lines.append(f'- Top warning: {warnings[0]}')
+        lines.append(f'- 주요 경고: {warnings[0]}')
     return lines, blockers
 
 
@@ -399,32 +411,38 @@ def summarize_open_questions(state_dir: Path) -> list[str]:
     return lines
 
 
-def next_best_step(tasks_index: dict[str, Any], tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]], blockers: list[str], source_blockers: list[str] | None = None, pdf_blockers: list[str] | None = None, latest_state: dict[str, Any] | None = None) -> str:
+def next_best_step(tasks_index: dict[str, Any], tasks: list[dict[str, Any]], specs: dict[str, dict[str, Any]], blockers: list[str], source_blockers: list[str] | None = None, pdf_blockers: list[str] | None = None, latest_state: dict[str, Any] | None = None, intake_status: dict[str, Any] | None = None, require_intake_approval: bool = True, research_status: dict[str, Any] | None = None, require_research_plan: bool = True, workflow_status: dict[str, Any] | None = None) -> str:
     if blockers:
-        return 'Resolve the preflight blockers before the next autonomous run.'
+        return '다음 자율 실행 전에 preflight blocker를 먼저 해소하세요.'
+    if require_intake_approval and intake_status is not None and not bool(intake_status.get('approved')):
+        return intake_gate_message(intake_status)
+    if require_research_plan and research_status is not None and not bool(research_status.get('approved')):
+        return research_gate_message(research_status)
     if source_blockers:
-        return 'Resolve the submission source blockers before rendering or packaging the next document pass.'
+        return '다음 문서 패스를 렌더링하거나 패키징하기 전에 제출 원고 blocker를 먼저 해소하세요.'
     if pdf_blockers:
-        return 'Resolve the submission PDF blockers and regenerate the attachment before declaring the goal complete.'
+        return '목표 완료를 선언하기 전에 제출 PDF blocker를 해결하고 첨부 파일을 다시 생성하세요.'
     if tasks and all(str(task.get('status', '')).lower() in DONE_STATUSES for task in tasks) and bool(latest_state.get('evalPassed')) and str(latest_state.get('evalStatus', '')).upper() == 'COMPLETE':
-        return 'Goal is complete. Archive this package or branch a derivative deliverable such as a submission-form short version or 발표용 one-pager.'
+        return '목표가 완료되었습니다. 이 패키지를 아카이브하거나 제출 폼 축약본, 발표용 원페이저 같은 파생 산출물로 이어가세요.'
     if tasks_need_seed(tasks_index, tasks):
-        return 'Tighten the PRD and local checks, then let the first Ralph run auto-generate the real task graph.'
+        if workflow_status and workflow_status.get('initialized') and not bool(workflow_status.get('seedReady')):
+            return workflow_seed_gate_message(workflow_status)
+        return 'PRD와 로컬 검증 기준을 먼저 다듬고, 첫 Ralph 실행에서 실제 task graph를 자동 생성하게 하세요.'
     for task in sorted(tasks, key=task_sort_key):
         if str(task.get('status', '')).lower() == 'in_progress':
-            return f"Continue task {task.get('id')} and keep task state accurate."
+            return f"task {task.get('id')} 를 이어서 진행하고 상태를 정확히 유지하세요."
     for task in sorted(tasks, key=task_sort_key):
         if str(task.get('status', '')).lower() in NEXT_TASK_STATUSES:
             deps = specs.get(str(task.get('id')), {}).get('dependsOn', [])
             if deps:
-                return f"Check whether task {task.get('id')} is now unblocked by {', '.join(str(dep) for dep in deps)}."
-            return f"Start the highest-priority runnable task: {task.get('id')} {task.get('title', '')}.".strip()
-    return 'Run local checks, inspect the latest output, and tighten the acceptance bar.'
+                return f"task {task.get('id')} 가 {', '.join(str(dep) for dep in deps)} 의 완료로 이제 풀렸는지 확인하세요."
+            return f"가장 우선순위가 높은 실행 가능 task를 시작하세요: {task.get('id')} {task.get('title', '')}.".strip()
+    return '로컬 검증을 다시 돌리고 최신 결과를 확인한 뒤 acceptance 기준을 더 단단하게 만드세요.'
 
 
 def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, str, dict[str, Any]]:
     ensure_context_layout(project_root, state_dir)
-    summary = strip_leading_heading(read_text(state_dir / 'prd' / 'SUMMARY.md')) or 'No project summary yet.'
+    summary = strip_leading_heading(read_text(state_dir / 'prd' / 'SUMMARY.md')) or '아직 프로젝트 요약이 없습니다.'
     prompt = read_text(state_dir / 'PROMPT.md')
     tasks_index = load_tasks_index(state_dir)
     tasks = load_tasks(state_dir)
@@ -443,6 +461,12 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
     recent = summarize_recent_progress(state_dir)
     mode = active_mode(state_dir)
     profile = quality_profile(state_dir)
+    config = load_loop_config(state_dir)
+    require_intake_approval = bool(config.get('loop', {}).get('require_intake_approval', True))
+    require_research_plan = bool(config.get('loop', {}).get('require_research_plan', True))
+    intake_status = load_intake_status(state_dir)
+    research_status = load_research_status(state_dir)
+    workflow_status = load_workflow_status(state_dir)
     mode_contract = load_mode_contract(state_dir)
     design_contract = load_design_contract(state_dir)
     design_preset = extract_preset(design_contract)
@@ -453,10 +477,10 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
     reference_pack_lines = contract_points(reference_pack_text)
 
     if seed_pending:
-        open_task_lines = ['- Bootstrap template is still active. The first Ralph run will replace it with a project-specific task graph.']
+        open_task_lines = ['- 아직 bootstrap template task graph가 활성화되어 있습니다. 첫 Ralph 실행이 이를 프로젝트 전용 task graph로 교체합니다.']
     else:
         open_task_lines = [task_status_line(task, specs.get(str(task.get('id')), {})) for task in open_tasks[:6]]
-    active_task_line = f"- {active_task.get('id')} {active_task.get('title')} ({active_task.get('status')})" if active_task else '- No task is currently marked in_progress.'
+    active_task_line = f"- {active_task.get('id')} {active_task.get('title')} ({active_task.get('status')})" if active_task else '- 현재 `in_progress` 로 표시된 task가 없습니다.'
 
     next_step = next_best_step(
         tasks_index=tasks_index,
@@ -466,119 +490,159 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         source_blockers=source_blockers,
         pdf_blockers=pdf_blockers,
         latest_state=latest_state,
+        intake_status=intake_status,
+        require_intake_approval=require_intake_approval,
+        research_status=research_status,
+        require_research_plan=require_research_plan,
+        workflow_status=workflow_status,
     )
 
     current_state_lines = [
-        '# Working Context',
+        '# 작업 컨텍스트',
         '',
-        '## Project Summary',
+        '## 프로젝트 요약',
         summary,
         '',
-        '## Operating Mode',
-        f'- Active mode: {mode}',
-        f'- Quality profile: {profile}',
-        *(mode_lines or ['- No mode contract summary captured yet.']),
+        '## 운영 모드',
+        f'- 현재 모드: {mode}',
+        f'- 품질 프로필: {profile}',
+        *(mode_lines or ['- 아직 모드 계약 요약이 없습니다.']),
         '',
-        '## Design Contract',
-        f'- Active preset: {design_preset}',
-        f"- Active reference pack: {reference_pack or 'none'}",
-        *(design_lines or ['- No design contract summary captured yet.']),
+        '## 디자인 계약',
+        f'- 현재 프리셋: {design_preset}',
+        f"- 현재 레퍼런스 팩: {reference_pack or '없음'}",
+        *(design_lines or ['- 아직 디자인 계약 요약이 없습니다.']),
         '',
-        '## Reference Pack',
-        *(reference_pack_lines or ['- No reference pack guidance loaded yet.']),
+        '## 레퍼런스 팩',
+        *(reference_pack_lines or ['- 아직 불러온 레퍼런스 팩 안내가 없습니다.']),
         '',
-        '## Current Execution State',
+        '## 인테이크 게이트',
+        f"- 인테이크 모드: {intake_status.get('mode', mode)}",
+        f"- 인테이크 상태: {intake_status.get('status', 'pending')}",
+        f"- 인테이크 승인: {'예' if intake_status.get('approved') else '아니오'}",
+        *(intake_status.get('lockSummary', []) or ['- 아직 승인된 인테이크 잠금 정보가 없습니다.']),
+        '',
+        '## 리서치 게이트',
+        f"- 리서치 모드: {research_status.get('mode', mode)}",
+        f"- 리서치 상태: {research_status.get('status', 'pending')}",
+        f"- 리서치 승인: {'예' if research_status.get('approved') else '아니오'}",
+        *(research_status.get('summary', []) or ['- 아직 승인된 리서치 계획 요약이 없습니다.']),
+        '',
+        '## 워크플로우 프로필',
+        f"- 워크플로우 프로필: {workflow_status.get('profile', '없음') or '없음'}",
+        f"- 워크플로우 단계: {workflow_status.get('currentStage', '없음') or '없음'}",
+        f"- 워크플로우 모드: {workflow_status.get('currentMode', mode)}",
+        f"- Task seed 준비 여부: {'예' if workflow_status.get('seedReady') else '아니오'}",
+        *(workflow_status.get('summary', []) or ['- 아직 워크플로우 프로필이 초기화되지 않았습니다.']),
+        '',
+        '## 현재 실행 상태',
         active_task_line,
-        f"- Loop iteration: {latest_state.get('iteration', 'n/a')} / {latest_state.get('maxIterations', 'n/a')}",
-        f"- Checks: {latest_state.get('checksSummary', 'No loop checks have run yet.')}",
-        f"- Review: {latest_state.get('reviewSummary', 'No review gate has run yet.')}",
-        f"- Goal eval: {latest_state.get('evalSummary', 'No goal evaluator result yet.')}",
-        f"- Hook loop: {latest_hook.get('status', 'inactive')}",
+        f"- 루프 반복: {latest_state.get('iteration', 'n/a')} / {latest_state.get('maxIterations', 'n/a')}",
+        f"- 검증: {latest_state.get('checksSummary', '아직 loop 검증이 실행되지 않았습니다.')}",
+        f"- 리뷰: {latest_state.get('reviewSummary', '아직 리뷰 게이트가 실행되지 않았습니다.')}",
+        f"- 목표 평가: {latest_state.get('evalSummary', '아직 목표 evaluator 결과가 없습니다.')}",
+        f"- 훅 루프: {latest_hook.get('status', 'inactive')}",
         '',
-        '## Open Tasks',
-        *(open_task_lines or ['- No open tasks remain.']),
+        '## 열린 태스크',
+        *(open_task_lines or ['- 열린 태스크가 없습니다.']),
         '',
-        '## Durable Facts',
-        *(durable['facts'] or ['- None yet.']),
+        '## 누적 사실',
+        *(durable['facts'] or ['- 아직 없습니다.']),
         '',
-        '## Durable Constraints',
-        *(durable['constraints'] or ['- None yet.']),
+        '## 누적 제약',
+        *(durable['constraints'] or ['- 아직 없습니다.']),
         '',
-        '## Design Direction Notes',
-        *(durable['style'] or ['- No approved visual direction has been captured yet.']),
+        '## 디자인 방향 메모',
+        *(durable['style'] or ['- 아직 승인된 시각 방향 메모가 없습니다.']),
         '',
-        '## Contracts',
-        *(durable['contracts'] or ['- No durable contracts captured yet.']),
+        '## 계약',
+        *(durable['contracts'] or ['- 아직 누적 계약 메모가 없습니다.']),
         '',
-        '## Approved Assets',
-        *(assets or ['- No approved assets registered yet.']),
+        '## 승인 자산',
+        *(assets or ['- 아직 승인된 자산이 등록되지 않았습니다.']),
         '',
-        '## Submission Source Gate',
-        *(source_review_lines or ['- No source review captured yet.']),
+        '## 제출 원고 게이트',
+        *(source_review_lines or ['- 아직 원고 리뷰가 없습니다.']),
         '',
-        '## Submission PDF Gate',
-        *(pdf_review_lines or ['- No submission PDF review captured yet.']),
+        '## 제출 PDF 게이트',
+        *(pdf_review_lines or ['- 아직 제출 PDF 리뷰가 없습니다.']),
         '',
-        '## Recent Progress',
-        *(recent or ['- No recent loop log entries yet.']),
+        '## 최근 진행 상황',
+        *(recent or ['- 아직 최근 loop 로그가 없습니다.']),
         '',
-        '## Preflight Blockers',
-        *(blockers or ['- None detected.']),
+        '## 사전 점검 차단 항목',
+        *(blockers or ['- 없음.']),
         '',
-        '## Preflight Warnings',
-        *(warnings or ['- None detected.']),
+        '## 사전 점검 경고',
+        *(warnings or ['- 없음.']),
         '',
-        '## Open Questions',
-        *(questions or ['- None captured.']),
+        '## 열린 질문',
+        *(questions or ['- 없음.']),
         '',
-        '## Stable Prompt Reminder',
-        prompt or 'No stable prompt has been written yet.',
+        '## 고정 프롬프트 메모',
+        prompt or '아직 고정 프롬프트가 작성되지 않았습니다.',
         '',
     ]
 
     handoff_lines = [
-        '# Compressed Handoff',
+        '# 압축 핸드오프',
         '',
         f'- Repo: {project_root}',
-        f'- Active mode: {mode}',
-        f'- Design preset: {design_preset}',
-        f"- Reference pack: {reference_pack or 'none'}",
-        f'- Next best step: {next_step}',
-        f"- Active task: {active_task.get('id')} {active_task.get('title')}" if active_task else '- Active task: none',
-        f"- Check state: {latest_state.get('checksSummary', 'not run')}",
-        f"- Review state: {latest_state.get('reviewSummary', 'not run')}",
-        f"- Goal eval: {latest_state.get('evalSummary', 'not run')}",
-        f"- Hook state: {latest_hook.get('status', 'inactive')}",
+        f'- 현재 모드: {mode}',
+        f'- 디자인 프리셋: {design_preset}',
+        f"- 레퍼런스 팩: {reference_pack or '없음'}",
+        f'- 다음 권장 단계: {next_step}',
+        f"- 현재 task: {active_task.get('id')} {active_task.get('title')}" if active_task else '- 현재 task: 없음',
+        f"- 검증 상태: {latest_state.get('checksSummary', '미실행')}",
+        f"- 리뷰 상태: {latest_state.get('reviewSummary', '미실행')}",
+        f"- 목표 평가: {latest_state.get('evalSummary', '미실행')}",
+        f"- 훅 상태: {latest_hook.get('status', 'inactive')}",
         '',
-        '## Mode Contract',
-        *(mode_lines[:4] or ['- Respect the mode-specific source of truth and completion bar.']),
+        '## 인테이크 게이트',
+        f"- 인테이크 상태: {intake_status.get('status', 'pending')}",
+        f"- 인테이크 승인: {'예' if intake_status.get('approved') else '아니오'}",
+        *(intake_status.get('lockSummary', [])[:3] or ['- 아직 승인된 인테이크 잠금 정보가 없습니다.']),
         '',
-        '## Design Contract',
-        *(design_lines[:4] or ['- Improve the design source before polishing output.']),
+        '## 리서치 게이트',
+        f"- 리서치 상태: {research_status.get('status', 'pending')}",
+        f"- 리서치 승인: {'예' if research_status.get('approved') else '아니오'}",
+        *(research_status.get('summary', [])[:3] or ['- 아직 승인된 리서치 계획 요약이 없습니다.']),
         '',
-        '## Reference Pack',
-        *(reference_pack_lines[:4] or ['- No reference pack guidance loaded yet.']),
+        '## 워크플로우 프로필',
+        f"- 워크플로우 프로필: {workflow_status.get('profile', '없음') or '없음'}",
+        f"- 워크플로우 단계: {workflow_status.get('currentStage', '없음') or '없음'}",
+        f"- Task seed 준비 여부: {'예' if workflow_status.get('seedReady') else '아니오'}",
+        *(workflow_status.get('summary', [])[:3] or ['- 아직 워크플로우 프로필이 초기화되지 않았습니다.']),
         '',
-        '## Must Remember',
-        *(durable['constraints'][:4] or ['- Keep the PRD, tasks, and repo state aligned.']),
+        '## 모드 계약',
+        *(mode_lines[:4] or ['- 현재 모드의 source of truth와 완료 기준을 반드시 지키세요.']),
         '',
-        '## Approved Assets',
-        *(assets[:4] or ['- No approved assets yet.']),
+        '## 디자인 계약',
+        *(design_lines[:4] or ['- 결과물을 다듬기 전에 디자인 source를 먼저 개선하세요.']),
         '',
-        '## Source Gate',
-        *(source_review_lines[:4] or ['- No source review captured yet.']),
+        '## 레퍼런스 팩',
+        *(reference_pack_lines[:4] or ['- 아직 불러온 레퍼런스 팩 안내가 없습니다.']),
         '',
-        '## PDF Gate',
-        *(pdf_review_lines[:4] or ['- No PDF review captured yet.']),
+        '## 꼭 기억할 점',
+        *(durable['constraints'][:4] or ['- PRD, task, repo 상태를 서로 맞춰 유지하세요.']),
         '',
-        '## Open Tasks',
-        *(open_task_lines[:4] or ['- No open tasks remain.']),
+        '## 승인 자산',
+        *(assets[:4] or ['- 아직 승인된 자산이 없습니다.']),
         '',
-        '## Recent Progress',
-        *(recent[:3] or ['- No recent progress logged yet.']),
+        '## 원고 게이트',
+        *(source_review_lines[:4] or ['- 아직 원고 리뷰가 없습니다.']),
         '',
-        '## Open Questions',
-        *(questions[:3] or ['- None.']),
+        '## PDF 게이트',
+        *(pdf_review_lines[:4] or ['- 아직 PDF 리뷰가 없습니다.']),
+        '',
+        '## 열린 태스크',
+        *(open_task_lines[:4] or ['- 열린 태스크가 없습니다.']),
+        '',
+        '## 최근 진행 상황',
+        *(recent[:3] or ['- 아직 기록된 최근 진행 상황이 없습니다.']),
+        '',
+        '## 열린 질문',
+        *(questions[:3] or ['- 없음.']),
         '',
     ]
 
@@ -589,6 +653,13 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         'qualityProfile': profile,
         'designPreset': design_preset,
         'referencePack': reference_pack,
+        'intakeApproved': bool(intake_status.get('approved')),
+        'intakeStatus': intake_status.get('status', 'pending'),
+        'researchApproved': bool(research_status.get('approved')),
+        'researchStatus': research_status.get('status', 'pending'),
+        'workflowProfile': workflow_status.get('profile', ''),
+        'workflowStage': workflow_status.get('currentStage', ''),
+        'workflowSeedReady': bool(workflow_status.get('seedReady')),
         'activeTask': active_task,
         'openTaskCount': 0 if seed_pending else len(open_tasks),
         'nextBestStep': next_step,
@@ -597,7 +668,7 @@ def build_context_markdown(project_root: Path, state_dir: Path) -> tuple[str, st
         'approvedAssets': assets,
         'sourceReview': source_review_lines,
         'submissionPdf': pdf_review_lines,
-        'evalSummary': latest_state.get('evalSummary', 'not run'),
+        'evalSummary': latest_state.get('evalSummary', '미실행'),
     }
     return '\n'.join(current_state_lines).rstrip() + '\n', '\n'.join(handoff_lines).rstrip() + '\n', payload
 
@@ -688,14 +759,14 @@ def main() -> int:
     if args.command == 'refresh':
         payload = refresh_context(project_root, state_dir, source=args.source)
         print(f"Refreshed context packet: {state_dir / 'context' / 'handoff.md'}")
-        print(f"Next best step: {payload['nextBestStep']}")
+        print(f"다음 권장 단계: {payload['nextBestStep']}")
         return 0
 
     if args.command == 'remember':
         remember_item(project_root, state_dir, args.kind, args.text.strip())
         payload = refresh_context(project_root, state_dir, source=f'remember:{args.kind}')
         print('Stored item and refreshed context.')
-        print(f"Next best step: {payload['nextBestStep']}")
+        print(f"다음 권장 단계: {payload['nextBestStep']}")
         return 0
 
     payload = load_status(project_root, state_dir)

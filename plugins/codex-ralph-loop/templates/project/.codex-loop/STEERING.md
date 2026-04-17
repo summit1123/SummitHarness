@@ -1,9 +1,9 @@
-# Steering
+# 스티어링
 
-Add urgent notes here while the loop is running.
+loop가 도는 동안 긴급 메모가 있으면 여기에 적습니다.
 
-Examples:
+예시:
 
-- switch the design direction toward something quieter
-- stop touching billing and focus on onboarding
-- fix the broken report export before new features
+- 디자인 방향을 더 차분한 쪽으로 바꾸기
+- billing은 건드리지 말고 onboarding에 집중하기
+- 새 기능보다 먼저 깨진 보고서 export를 고치기

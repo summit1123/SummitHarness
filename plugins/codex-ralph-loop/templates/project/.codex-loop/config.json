@@ -39,7 +39,12 @@
     "max_iterations": 8,
     "mode": "implementation",
     "auto_seed_tasks": true,
-    "quality_profile": ""
+    "require_intake_approval": true,
+    "require_research_plan": true,
+    "quality_profile": "",
+    "workflow_profile": "",
+    "workflow_stage": "",
+    "workflow_goal": ""
   },
   "checks": {
     "commands": [],

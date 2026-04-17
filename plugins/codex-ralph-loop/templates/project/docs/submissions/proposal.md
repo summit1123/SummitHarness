@@ -1,37 +1,37 @@
-# Replace This Title
+# 제안서 제목을 입력하세요
 
-## One-line Summary
+## 한 줄 요약
 
-State the problem, audience, and change in one sentence.
+해결하려는 문제, 대상 사용자, 기대 변화를 한 문장으로 적습니다.
 
-## Why This Matters Now
+## 지금 중요한 이유
 
-Write the current pressure, risk, or timing signal in reviewer language.
+현재의 압박 요인, 위험, 정책·시장 타이밍을 심사위원이 이해하기 쉬운 언어로 정리합니다.
 
-| Signal | Meaning | Why it matters |
+| 신호 | 의미 | 왜 중요한가 |
 | --- | --- | --- |
-| Replace | Replace | Replace |
+| 입력 | 입력 | 입력 |
 
-## Problem Definition
+## 문제 정의
 
-Describe the operational problem in a way a reviewer can verify quickly.
+심사위원이 빠르게 검증할 수 있도록 운영상의 문제를 구체적으로 설명합니다.
 
-## Proposed Structure
+## 제안 구조
 
-Use tables, flows, and comparisons where they reduce ambiguity.
+모호함을 줄일 수 있다면 표, 흐름도, 비교 구조를 적극적으로 사용합니다.
 
-| Component | What it does | Proof today | Next step |
+| 구성 요소 | 역할 | 현재 근거 | 다음 단계 |
 | --- | --- | --- | --- |
-| Replace | Replace | Replace | Replace |
+| 입력 | 입력 | 입력 | 입력 |
 
-## Feasibility
+## 실현 가능성
 
-Separate current implementation proof from future expansion.
+현재 구현 근거와 향후 확장 계획을 구분해서 적습니다.
 
-## Business Path
+## 사업화 경로
 
-Explain who would pay, why, and what the first adoption motion is.
+누가 왜 비용을 지불하는지, 첫 도입 경로가 무엇인지 설명합니다.
 
-## Expected Effect
+## 기대 효과
 
-State what changes for the operator, buyer, or reviewer if this works.
+이 제안이 작동했을 때 운영자, 구매자, 심사 관점에서 무엇이 달라지는지 적습니다.

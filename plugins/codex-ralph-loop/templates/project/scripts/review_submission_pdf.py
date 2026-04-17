@@ -180,30 +180,30 @@ def render_review(review: dict[str, Any]) -> str:
     warnings = review.get("warnings", [])
     preview = extraction.get("preview", "") if isinstance(extraction, dict) else ""
     lines = [
-        "# Submission PDF Review",
+        "# 제출 PDF 점검 결과",
         "",
-        f"- Generated: {review['generatedAt']}",
-        f"- File: {info['name']}",
-        f"- Path: {info['path']}",
-        f"- Size: {info['sizeMegabytes']:.3f} MB",
-        f"- Pages: {metadata.get('pages', 'unknown')}",
-        f"- PDF version: {metadata.get('pdfVersion', 'unknown')}",
+        f"- 생성 시각: {review['generatedAt']}",
+        f"- 파일: {info['name']}",
+        f"- 경로: {info['path']}",
+        f"- 크기: {info['sizeMegabytes']:.3f} MB",
+        f"- 페이지 수: {metadata.get('pages', '알 수 없음')}",
+        f"- PDF 버전: {metadata.get('pdfVersion', '알 수 없음')}",
         "",
-        "## Blockers",
-        *([f"- {item}" for item in blockers] or ["- None"]),
+        "## 차단 이슈",
+        *([f"- {item}" for item in blockers] or ["- 없음"]),
         "",
-        "## Warnings",
-        *([f"- {item}" for item in warnings] or ["- None"]),
+        "## 경고",
+        *([f"- {item}" for item in warnings] or ["- 없음"]),
         "",
-        "## Suggested Next Actions",
-        *([f"- {item}" for item in review.get("nextActions", [])] or ["- None"]),
+        "## 다음 조치 제안",
+        *([f"- {item}" for item in review.get("nextActions", [])] or ["- 없음"]),
         "",
-        "## Preview",
+        "## 미리보기",
     ]
     if preview:
         lines.extend(["```text", preview, "```"])
     else:
-        lines.append("- No text preview available.")
+        lines.append("- 추출 가능한 텍스트 미리보기가 없습니다.")
     lines.append("")
     return "\n".join(lines)
 
@@ -219,10 +219,10 @@ def write_review_files(root: Path, review: dict[str, Any]) -> tuple[Path, Path]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Review a submission or planning PDF before the next SummitHarness run.")
-    parser.add_argument("pdf", help="Path to the PDF file to inspect")
-    parser.add_argument("--max-mb", type=float, default=20.0, help="Maximum allowed file size in megabytes")
-    parser.add_argument("--stdout-only", action="store_true", help="Print the review instead of writing artifact files")
+    parser = argparse.ArgumentParser(description="다음 SummitHarness 실행 전에 제출용 또는 기획용 PDF를 점검합니다.")
+    parser.add_argument("pdf", help="점검할 PDF 파일 경로")
+    parser.add_argument("--max-mb", type=float, default=20.0, help="허용 가능한 최대 파일 크기(MB)")
+    parser.add_argument("--stdout-only", action="store_true", help="산출물 파일 대신 리뷰 결과를 stdout으로 출력")
     args = parser.parse_args()
 
     root = project_root()

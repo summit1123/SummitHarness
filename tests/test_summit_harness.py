@@ -16,6 +16,9 @@ BOOTSTRAP = REPO_ROOT / "plugins" / "codex-ralph-loop" / "scripts" / "bootstrap_
 STOP_DISPATCH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "scripts" / "stop_hook_dispatch.py"
 CODEX_RALPH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "codex_ralph.py"
 CONTEXT_ENGINE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "context_engine.py"
+SUMMIT_INTAKE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "summit_intake.py"
+SUMMIT_RESEARCH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "summit_research.py"
+SUMMIT_START = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "summit_start.py"
 REVIEW_PDF = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "review_submission_pdf.py"
 REVIEW_SOURCE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "review_submission_source.py"
 RENDER_MD = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "render_markdown_submission.py"
@@ -43,10 +46,16 @@ class SummitHarnessTests(unittest.TestCase):
             subprocess.run([sys.executable, str(BOOTSTRAP), "--force", str(root)], check=True)
             self.assertTrue(marker.exists())
             self.assertTrue((root / "scripts" / "context_engine.py").exists())
+            self.assertTrue((root / "scripts" / "summit_intake.py").exists())
+            self.assertTrue((root / "scripts" / "summit_research.py").exists())
+            self.assertTrue((root / "scripts" / "summit_start.py").exists())
             self.assertTrue((root / "scripts" / "review_submission_pdf.py").exists())
             self.assertTrue((root / "scripts" / "review_submission_source.py").exists())
             self.assertTrue((root / "scripts" / "render_markdown_submission.py").exists())
             self.assertTrue((root / ".codex-loop" / "design" / "DESIGN.md").exists())
+            self.assertTrue((root / ".codex-loop" / "intake" / "APPROVAL.md").exists())
+            self.assertTrue((root / ".codex-loop" / "research" / "APPROVAL.md").exists())
+            self.assertTrue((root / ".codex-loop" / "workflow" / "README.md").exists())
             self.assertTrue((root / ".codex-loop" / "design" / "reference-packs" / "security-console.md").exists())
             self.assertIn('Reference-Pack:', (root / ".codex-loop" / "design" / "DESIGN.md").read_text(encoding='utf-8'))
             self.assertTrue((root / ".codex-loop" / "modes" / "proposal.md").exists())
@@ -98,7 +107,7 @@ class SummitHarnessTests(unittest.TestCase):
             self.assertEqual(registry["assets"][0]["approvedFor"], "both")
             self.assertIn("Hero v1", "\n".join(payload["approvedAssets"]))
             self.assertIn("nextBestStep", payload)
-            self.assertIn("auto-generate the real task graph", payload["nextBestStep"])
+            self.assertIn("모드에 맞는 인테이크 Q&A를 완료하세요", payload["nextBestStep"])
 
     def test_stop_hook_does_not_accept_completion_mention_when_tasks_are_open(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -238,12 +247,12 @@ REPLAN: YES
     def test_tasks_need_seed_detects_bootstrap_template(self) -> None:
         mod = load_module(CODEX_RALPH, "codex_ralph_seed_test")
         tasks_index = {
-            "project": "Codex Ralph Loop Workspace",
+            "project": "Codex Ralph Loop 작업공간",
             "source": "bootstrap-template",
             "tasks": [
-                {"id": "001", "title": "Brainstorm and lock the build brief", "status": "todo"},
-                {"id": "002", "title": "Write the first execution plan", "status": "todo"},
-                {"id": "003", "title": "Build and verify the first vertical slice", "status": "todo"},
+                {"id": "001", "title": "빌드 브리프를 정리하고 확정하기", "status": "todo"},
+                {"id": "002", "title": "첫 실행 계획 작성하기", "status": "todo"},
+                {"id": "003", "title": "첫 번째 수직 슬라이스 구현 및 검증하기", "status": "todo"},
             ],
         }
         self.assertTrue(mod.tasks_need_seed(tasks_index, tasks_index["tasks"]))
@@ -300,6 +309,14 @@ REPLAN: YES
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp).resolve()
             subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            approval_path = root / ".codex-loop" / "intake" / "APPROVAL.md"
+            approval_text = approval_path.read_text(encoding="utf-8")
+            approval_text = approval_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예")
+            approval_path.write_text(approval_text, encoding="utf-8")
+            research_approval = root / ".codex-loop" / "research" / "APPROVAL.md"
+            research_text = research_approval.read_text(encoding="utf-8")
+            research_text = research_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예")
+            research_approval.write_text(research_text, encoding="utf-8")
             review_dir = root / ".codex-loop" / "artifacts" / "pdf-review"
             review_dir.mkdir(parents=True, exist_ok=True)
             (review_dir / "proposal-review.json").write_text(
@@ -319,7 +336,7 @@ REPLAN: YES
 
             status = mod.load_status(root, root / ".codex-loop")
             self.assertIn("proposal.pdf", status["handoff"])
-            self.assertIn("submission pdf blockers", status["nextBestStep"].lower())
+            self.assertIn("제출 pdf blocker", status["nextBestStep"].lower())
 
     def test_context_engine_surfaces_warning_only_source_review_without_crashing(self) -> None:
         mod = load_module(CONTEXT_ENGINE, "context_engine_source_review_test")
@@ -346,7 +363,7 @@ REPLAN: YES
 
             status = mod.load_status(root, root / ".codex-loop")
             self.assertIn("proposal.md", status["handoff"])
-            self.assertIn("source warnings: 1", status["handoff"].lower())
+            self.assertIn("원고 경고: 1", status["handoff"])
             self.assertIn("nextBestStep", status)
 
 
@@ -363,10 +380,30 @@ REPLAN: YES
             self.assertEqual(status["referencePack"], "security-console")
             self.assertIn("security-console", status["handoff"])
 
+    def test_context_engine_surfaces_workflow_profile_in_handoff(self) -> None:
+        mod = load_module(CONTEXT_ENGINE, "context_engine_workflow_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            subprocess.run([sys.executable, str(root / "scripts" / "summit_start.py"), "init", "--profile", "build-direct", "--goal", "Ship a real feature", "--force"], cwd=root, check=True)
+            status = mod.load_status(root, root / ".codex-loop")
+            self.assertEqual(status["workflowProfile"], "build-direct")
+            self.assertEqual(status["workflowStage"], "onboarding")
+            self.assertIn("워크플로우 프로필", status["handoff"])
+            self.assertIn("build-direct", status["handoff"])
+
     def test_loop_can_replan_after_goal_evaluator_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            approval_path = root / ".codex-loop" / "intake" / "APPROVAL.md"
+            approval_text = approval_path.read_text(encoding="utf-8")
+            approval_text = approval_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예")
+            approval_path.write_text(approval_text, encoding="utf-8")
+            research_approval = root / ".codex-loop" / "research" / "APPROVAL.md"
+            research_text = research_approval.read_text(encoding="utf-8")
+            research_text = research_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예")
+            research_approval.write_text(research_text, encoding="utf-8")
 
             stub = root / "stub_agent.py"
             stub.write_text(
@@ -695,7 +732,7 @@ if __name__ == "__main__":
                         '',
                         '    if args.mode == "evaluator":',
                         '        active_index_ok = "Active task index entry:\\n```json\\n{\\n  \\"id\\": \\"002\\"" in prompt',
-                        '        handoff_ok = "- Active task: 002 Advance verification" in prompt',
+                        '        handoff_ok = "- 현재 task: 002 Advance verification" in prompt',
                         '        summary = (',
                         '            "Active task stayed in sync after worker progress."',
                         '            if active_index_ok and handoff_ok',
@@ -744,7 +781,7 @@ if __name__ == "__main__":
             self.assertEqual(state["evalSummary"], "Active task stayed in sync after worker progress.")
             self.assertEqual(state["task"]["id"], "002")
             handoff = (state_dir / "context" / "handoff.md").read_text(encoding="utf-8")
-            self.assertIn("- Active task: 002 Advance verification", handoff)
+            self.assertIn("- 현재 task: 002 Advance verification", handoff)
 
     def test_installer_creates_backup_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -803,6 +840,9 @@ if __name__ == "__main__":
             "summit-preflight.md",
             "summit-review-pdf.md",
             "summit-context-refresh.md",
+            "summit-intake.md",
+            "summit-research-plan.md",
+            "ralph-start.md",
             "summit-brainstorm.md",
             "summit-write-plan.md",
         }
@@ -822,13 +862,39 @@ if __name__ == "__main__":
         self.assertEqual(mod.first_nonempty_line(text), "Real progress after the promise.")
         self.assertEqual(mod.first_nonempty_line("<promise>COMPLETE</promise>\n"), "Completion promise emitted.")
 
+    def test_context_engine_next_best_step_requires_intake_when_pending(self) -> None:
+        mod = load_module(CONTEXT_ENGINE, "context_engine_intake_next_step_test")
+        next_step = mod.next_best_step(
+            tasks_index={"source": "bootstrap-template"},
+            tasks=[],
+            specs={},
+            blockers=[],
+            intake_status={"approved": False, "missing": ["approval not granted"]},
+            require_intake_approval=True,
+        )
+        self.assertIn("모드에 맞는 인테이크 Q&A를 완료하세요", next_step)
+
+    def test_context_engine_next_best_step_requires_research_when_pending(self) -> None:
+        mod = load_module(CONTEXT_ENGINE, "context_engine_research_next_step_test")
+        next_step = mod.next_best_step(
+            tasks_index={"source": "bootstrap-template"},
+            tasks=[],
+            specs={},
+            blockers=[],
+            intake_status={"approved": True},
+            require_intake_approval=True,
+            research_status={"approved": False, "missing": ["research plan not approved"]},
+            require_research_plan=True,
+        )
+        self.assertIn("단계형 deep research 계획을 완료하세요", next_step)
+
     def test_context_engine_next_best_step_accepts_pending_tasks(self) -> None:
         mod = load_module(CONTEXT_ENGINE, "context_engine_pending_next_step_test")
         tasks_index = {"source": "project-specific-bootstrap"}
         tasks = [{"id": "005", "title": "Run explicit local self-smoke and reconcile handoff", "status": "pending", "priority": "p1"}]
         specs = {"005": {"dependsOn": ["004"]}}
         next_step = mod.next_best_step(tasks_index, tasks, specs, blockers=[])
-        self.assertEqual(next_step, "Check whether task 005 is now unblocked by 004.")
+        self.assertEqual(next_step, "task 005 가 004 의 완료로 이제 풀렸는지 확인하세요.")
 
     def test_context_engine_next_best_step_reports_completion_when_goal_eval_passed(self) -> None:
         mod = load_module(CONTEXT_ENGINE, "context_engine_complete_next_step_test")
@@ -839,7 +905,7 @@ if __name__ == "__main__":
         next_step = mod.next_best_step(tasks_index, tasks, specs, blockers=[], latest_state=latest_state)
         self.assertEqual(
             next_step,
-            "Goal is complete. Archive this package or branch a derivative deliverable such as a submission-form short version or 발표용 one-pager.",
+            "목표가 완료되었습니다. 이 패키지를 아카이브하거나 제출 폼 축약본, 발표용 원페이저 같은 파생 산출물로 이어가세요.",
         )
 
     def test_context_engine_recent_progress_prefers_summary_line(self) -> None:
@@ -881,7 +947,7 @@ if __name__ == "__main__":
             )
             self.assertEqual(
                 mod.summarize_recent_progress(state_dir),
-                ["- Iteration 1 - 2026-04-13T02:23:36+09:00: Completion promise emitted."],
+                ["- Iteration 1 - 2026-04-13T02:23:36+09:00: 완료 promise가 출력되었습니다."],
             )
 
     def test_context_engine_strips_summary_heading_when_embedding(self) -> None:
@@ -891,15 +957,15 @@ if __name__ == "__main__":
             state_dir = root / ".codex-loop"
             (state_dir / "prd").mkdir(parents=True, exist_ok=True)
             (state_dir / "prd" / "SUMMARY.md").write_text(
-                "# Project Summary\n\nThis is the embedded summary body.\n",
+                "# 프로젝트 요약\n\nThis is the embedded summary body.\n",
                 encoding="utf-8",
             )
             (state_dir / "PROMPT.md").write_text("Stable prompt body.", encoding="utf-8")
 
             current_state, _, _ = mod.build_context_markdown(root, state_dir)
 
-            self.assertIn("## Project Summary\nThis is the embedded summary body.", current_state)
-            self.assertNotIn("## Project Summary\n# Project Summary", current_state)
+            self.assertIn("## 프로젝트 요약\nThis is the embedded summary body.", current_state)
+            self.assertNotIn("## 프로젝트 요약\n# 프로젝트 요약", current_state)
 
     def test_seed_prompt_calls_out_bootstrap_scaffold_files(self) -> None:
         mod = load_module(CODEX_RALPH, "codex_ralph_seed_prompt_test")
@@ -957,8 +1023,117 @@ if __name__ == "__main__":
 
             self.assertTrue(review["blockers"])
             self.assertEqual(review['design']['referencePack'], 'editorial-signal')
-            self.assertTrue(any("Placeholder" in item or "template markers" in item for item in review["blockers"]))
+            self.assertTrue(any("placeholder" in item.lower() or "템플릿 문구" in item for item in review["blockers"]))
 
+
+    def test_summit_intake_init_updates_mode_and_docs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            subprocess.run([sys.executable, str(root / "scripts" / "summit_intake.py"), "init", "--mode", "proposal", "--force"], cwd=root, check=True)
+            config = json.loads((root / ".codex-loop" / "config.json").read_text(encoding="utf-8"))
+            approval_text = (root / ".codex-loop" / "intake" / "APPROVAL.md").read_text(encoding="utf-8")
+            self.assertEqual(config["loop"]["mode"], "proposal")
+            self.assertIn("모드: proposal", approval_text)
+
+    def test_summit_research_init_updates_mode_and_docs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            subprocess.run([sys.executable, str(root / "scripts" / "summit_research.py"), "init", "--mode", "product-ui", "--force"], cwd=root, check=True)
+            config = json.loads((root / ".codex-loop" / "config.json").read_text(encoding="utf-8"))
+            approval_text = (root / ".codex-loop" / "research" / "APPROVAL.md").read_text(encoding="utf-8")
+            self.assertEqual(config["loop"]["mode"], "product-ui")
+            self.assertIn("모드: product-ui", approval_text)
+
+    def test_summit_start_init_creates_workflow_profile_and_stage_docs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            subprocess.run([sys.executable, str(root / "scripts" / "summit_start.py"), "init", "--profile", "idea-to-service", "--goal", "Turn a brief into a real service", "--force"], cwd=root, check=True)
+            config = json.loads((root / ".codex-loop" / "config.json").read_text(encoding="utf-8"))
+            status_text = (root / ".codex-loop" / "workflow" / "STATUS.md").read_text(encoding="utf-8")
+            self.assertEqual(config["loop"]["workflow_profile"], "idea-to-service")
+            self.assertEqual(config["loop"]["workflow_stage"], "onboarding")
+            self.assertEqual(config["loop"]["mode"], "proposal")
+            self.assertIn("현재-단계: onboarding", status_text)
+
+    def test_summit_start_status_marks_only_completed_stages_as_done(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            subprocess.run([sys.executable, str(root / "scripts" / "summit_start.py"), "init", "--profile", "build-direct", "--goal", "Ship a real feature", "--force"], cwd=root, check=True)
+            subprocess.run([sys.executable, str(root / "scripts" / "summit_start.py"), "advance", "--stage", "task-graph"], cwd=root, check=True)
+            status_text = (root / ".codex-loop" / "workflow" / "STATUS.md").read_text(encoding="utf-8")
+            self.assertIn("- [x] onboarding: 온보딩 (implementation)", status_text)
+            self.assertIn("- [x] technical-research: 기술 조사 (implementation)", status_text)
+            self.assertIn("- [> ] task-graph: Task graph 작성 (implementation)", status_text)
+            self.assertIn("- [ ] implementation: 구현 (implementation)", status_text)
+            self.assertIn("- [ ] verification: 검증 (implementation)", status_text)
+
+    def test_summit_start_advance_preserves_existing_approved_docs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            subprocess.run([sys.executable, str(root / "scripts" / "summit_start.py"), "init", "--profile", "idea-to-service", "--goal", "From idea to shipped service", "--force"], cwd=root, check=True)
+
+            intake_approval = root / ".codex-loop" / "intake" / "APPROVAL.md"
+            intake_text = intake_approval.read_text(encoding="utf-8")
+            intake_text = intake_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예")
+            intake_text += "\n- preserve-sentinel-intake\n"
+            intake_approval.write_text(intake_text, encoding="utf-8")
+
+            research_approval = root / ".codex-loop" / "research" / "APPROVAL.md"
+            research_text = research_approval.read_text(encoding="utf-8")
+            research_text = research_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예")
+            research_text += "\n- preserve-sentinel-research\n"
+            research_approval.write_text(research_text, encoding="utf-8")
+
+            subprocess.run([sys.executable, str(root / "scripts" / "summit_start.py"), "advance", "--stage", "product-plan"], cwd=root, check=True)
+
+            config = json.loads((root / ".codex-loop" / "config.json").read_text(encoding="utf-8"))
+            self.assertEqual(config["loop"]["workflow_stage"], "product-plan")
+            self.assertEqual(config["loop"]["mode"], "prd")
+            self.assertIn("preserve-sentinel-intake", intake_approval.read_text(encoding="utf-8"))
+            self.assertIn("preserve-sentinel-research", research_approval.read_text(encoding="utf-8"))
+
+
+    def test_loop_blocks_seed_until_intake_is_approved(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            result = subprocess.run([sys.executable, str(root / "scripts" / "codex_ralph.py"), "--once"], cwd=root, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 3, msg=result.stdout + result.stderr)
+            self.assertIn("모드에 맞는 인테이크 Q&A를 완료하세요", result.stdout)
+
+    def test_loop_blocks_seed_until_research_is_approved(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            approval_path = root / ".codex-loop" / "intake" / "APPROVAL.md"
+            approval_text = approval_path.read_text(encoding="utf-8")
+            approval_text = approval_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예")
+            approval_path.write_text(approval_text, encoding="utf-8")
+            result = subprocess.run([sys.executable, str(root / "scripts" / "codex_ralph.py"), "--once"], cwd=root, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 3, msg=result.stdout + result.stderr)
+            self.assertIn("단계형 deep research 계획을 완료하세요", result.stdout)
+
+    def test_loop_blocks_seed_until_workflow_stage_is_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            subprocess.run([sys.executable, str(root / "scripts" / "summit_start.py"), "init", "--profile", "idea-to-service", "--goal", "From idea to real product", "--force"], cwd=root, check=True)
+            intake_approval = root / ".codex-loop" / "intake" / "APPROVAL.md"
+            intake_text = intake_approval.read_text(encoding="utf-8")
+            intake_text = intake_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예")
+            intake_approval.write_text(intake_text, encoding="utf-8")
+            research_approval = root / ".codex-loop" / "research" / "APPROVAL.md"
+            research_text = research_approval.read_text(encoding="utf-8")
+            research_text = research_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예")
+            research_approval.write_text(research_text, encoding="utf-8")
+            result = subprocess.run([sys.executable, str(root / "scripts" / "codex_ralph.py"), "--once"], cwd=root, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 3, msg=result.stdout + result.stderr)
+            self.assertIn("task seed 생성 이전 단계", result.stdout)
 
     def test_active_quality_profile_falls_back_for_unknown_profile(self) -> None:
         mod = load_module(CODEX_RALPH, "codex_ralph_quality_profile_test")

@@ -1,53 +1,51 @@
-# Product Requirements Document
+# 제품 요구사항 문서
 
-## Working title
+## 작업 제목
 
-Replace this with your product or feature name.
+- 작성 필요: 제품 또는 기능 이름을 적어주세요.
 
-## Problem
+## 문제 정의
 
-Describe the user pain clearly enough that an agent can tell when a feature is
-real and when it is still hand-wavy.
+사용자가 겪는 문제를 에이전트가 구체적으로 판단할 수 있을 만큼 명확히 적어주세요.
 
-## Users
+## 사용자
 
-- Primary user:
-- Secondary user:
+- 주요 사용자:
+- 보조 사용자:
 
-## Outcome
+## 기대 결과
 
-What should feel better, faster, safer, or more valuable once the product
-exists?
+제품이 존재하게 되면 무엇이 더 빠르고, 더 안전하고, 더 가치 있어지는지 적어주세요.
 
-## Core flows
+## 핵심 흐름
 
-1. The user arrives and understands the first meaningful action.
-2. The user completes the primary workflow end to end.
-3. The user understands system state, errors, and next actions.
+1. 사용자가 도착해 첫 의미 있는 행동을 이해합니다.
+2. 사용자가 핵심 워크플로를 end-to-end로 완료합니다.
+3. 사용자가 시스템 상태, 오류, 다음 행동을 이해합니다.
 
-## Functional requirements
+## 기능 요구사항
 
-- Add concrete requirements here.
+- 작성 필요: 구체적 요구사항을 적어주세요.
 
-## Non-functional requirements
+## 비기능 요구사항
 
-- performance
-- reliability
-- security
-- accessibility
-- analytics
+- 성능
+- 안정성
+- 보안
+- 접근성
+- 분석/로그
 
-## AI behavior
+## AI 동작 규칙
 
-- model touchpoints
-- fallback behavior
-- hallucination boundaries
-- privacy or data handling rules
+- 모델이 개입하는 지점
+- fallback 동작
+- hallucination 경계
+- 개인정보 및 데이터 처리 규칙
 
-## Design direction
+## 디자인 방향
 
-Describe the tone, density, layout mood, references, and interaction style.
+톤, 밀도, 레이아웃 분위기, 레퍼런스, 상호작용 스타일을 적어주세요.
 
-## Acceptance bar
+## 완료 기준
 
-Write the conditions that make you comfortable saying the product is real.
+제품이 실제라고 말할 수 있는 조건을 적어주세요.

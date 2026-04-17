@@ -1,6 +1,6 @@
-# Preflight
+# 사전 점검
 
-Generated environment checks live here.
+생성된 환경 점검 결과가 이곳에 저장됩니다.
 
-- `status.json`: machine-readable status for automation
-- `REPORT.md`: human-readable summary of blockers and warnings
+- `status.json`: 자동화용 기계 판독 상태
+- `REPORT.md`: 사람이 읽는 차단 이슈 / 경고 요약

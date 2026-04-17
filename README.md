@@ -1,98 +1,77 @@
 # SummitHarness
 
-`SummitHarness`는 Codex에서 장시간 작업을 자동 반복시키되, **산출물의 종류에 따라 다른 품질 기준을 적용하는 Ralph-style 하네스**입니다.
+`SummitHarness`는 Codex용 Ralph-style 하네스입니다.
+반복 실행 자체보다, **무엇을 만들고 있는지에 따라 루프의 판단 기준을 바꾸는 것**에 초점을 둡니다.
 
-단순히 “계속 다시 시키는 루프”가 아니라,
-
-- 제안서면 제안서답게
-- PRD면 PRD답게
-- 구현이면 구현답게
-- UI면 UI답게
-
-source of truth, 평가 기준, 검증 흐름을 바꾸는 것이 핵심입니다.
+제안서는 제안서답게, PRD는 PRD답게, 구현은 구현답게, UI는 실제 제품 화면답게 다뤄야 합니다. `SummitHarness`는 그 차이를 workflow, mode, source of truth, evaluator, design contract에 모두 반영합니다.
 
 ## 왜 필요한가
 
-기존의 단순 에이전트 루프는 반복은 잘합니다. 하지만 실제 작업에서는 아래 문제가 자주 생깁니다.
+기본적인 반복 루프만으로는 아래 문제가 자주 생깁니다.
 
 1. 산출물 종류를 구분하지 못합니다.
 - 제안서도 코드처럼 다루고, UI도 문서처럼 다룹니다.
 - 그래서 완료 판정이 엉성해집니다.
 
-2. PDF나 결과물만 만지다가 원본이 약해집니다.
-- 문서 작업에서 자꾸 PDF만 고치고, 정작 Markdown source는 빈약한 상태로 남습니다.
+2. 원본보다 포장만 만지게 됩니다.
+- 문서 작업은 PDF만 고치고 Markdown source는 빈약한 채로 남습니다.
+- UI 작업은 실제 흐름보다 카드 몇 장과 장식만 늘어납니다.
 
-3. 디자인이 반복적으로 비슷해집니다.
-- 장식용 카드, 애매한 강조색, 허전한 레이아웃, 전형적인 AI 산출물 패턴으로 수렴합니다.
+3. evaluator가 현재 task만 보고 끝났다고 착각합니다.
+- 목표가 안 끝났는데 task list만 정리되면 완료처럼 보일 수 있습니다.
 
-4. evaluator가 현실을 잘 못 봅니다.
-- 실제 목표보다 현재 task 목록만 보고 끝났다고 착각할 수 있습니다.
+4. 컨텍스트가 길어질수록 작업이 흐려집니다.
+- 승인 기준, 현재 단계, 남은 증거가 분리되어 있으면 loop가 헤매기 쉽습니다.
 
 `SummitHarness`는 이 문제를 막기 위해 만들어졌습니다.
 
-## 무엇을 해결하나
+## 무엇이 달라졌나
 
-### 1. mode-aware loop
-작업 모드에 따라 source of truth와 quality bar를 다르게 적용합니다.
+### 1. workflow profile을 먼저 고릅니다
+이번 런이 어떤 여정인지부터 잠급니다.
 
-- `proposal`
-- `prd`
-- `implementation`
-- `product-ui`
+- `proposal-only`: 제출용 문서와 첨부 패키지 중심
+- `planning-only`: PRD와 task graph 중심
+- `build-direct`: 이미 잠긴 아이디어를 바로 구현
+- `idea-to-service`: 아이디어 탐색부터 디자인, 개발, 검증까지 end-to-end
 
-### 2. source-first document flow
-문서 작업은 PDF가 아니라 Markdown 원본을 먼저 검수합니다.
+즉 `mode`보다 한 단계 위의 경로를 먼저 고정하고, 현재 stage에 맞는 mode가 따라오게 합니다.
 
-`proposal.md -> source review -> render -> pdf review`
+### 2. 바로 task graph를 만들지 않습니다
+seed 전에 두 개의 게이트를 먼저 잠급니다.
 
-### 3. design contract + reference pack
-디자인도 감으로 맡기지 않습니다.
+- 인테이크 Q&A와 승인 문서
+- 단계형 research plan, findings, recommended direction
+
+이 과정을 거치면 첫 task graph부터 훨씬 덜 흔들립니다.
+
+### 3. mode별 source of truth가 다릅니다
+
+- `proposal`: `docs/submissions/proposal.md` + design contract + PRD
+- `prd`: `PRD.md`, `SUMMARY.md`, `tasks.json`, `TASK-*.json`
+- `implementation`: codebase + tests + local checks + PRD
+- `product-ui`: design contract + reference pack + approved assets + screenshots + actual UI
+
+### 4. 문서는 source-first로 처리합니다
+문서 작업은 `proposal.md -> source review -> render -> pdf review` 순서로 흘러갑니다.
+PDF는 패키징 결과물이지, 내용의 원본이 아닙니다.
+
+### 5. 디자인도 계약으로 다룹니다
+디자인은 감으로 맡기지 않습니다.
 
 - `Preset`: 큰 방향
-- `Reference-Pack`: 프로젝트에 맞는 시각 레퍼런스 가족
+- `Reference-Pack`: 프로젝트에 맞는 시각 레퍼런스 계열
 - `Project-Specific Rules`: 이번 작업 전용 금지/필수 규칙
 
-### 4. context compression
-루프가 길어져도 현재 상태를 압축된 handoff로 유지합니다.
+### 6. evaluator가 goal과 task drift를 같이 봅니다
+현재 task만 보는 것이 아니라, 실제 목표와 task graph가 어긋났는지 같이 봅니다. 필요하면 replanning으로 이어집니다.
 
-### 5. evaluator-driven replanning
-목표에 아직 도달하지 않았는데 task graph가 현실과 어긋나면, evaluator가 replanning을 유도합니다.
+### 7. 긴 런을 위한 압축 컨텍스트를 유지합니다
+`handoff`, `workflow`, `intake`, `research`, `PRD`, `design`, `logs`가 서로 어긋나지 않도록 압축 패킷을 계속 갱신합니다.
 
-## 핵심 구조
+## 빠른 시작
 
-이 저장소는 현재 아래 축으로 동작합니다.
-
-1. `preflight`
-2. `context engine`
-3. `mode contracts`
-4. `design contract`
-5. `reference-pack design layer`
-6. `document source gate`
-7. `render pipeline`
-8. `implementation loop`
-9. `review / evaluator gates`
-
-## 디자인 레이어는 왜 따로 두는가
-
-에이전트는 디자인 기준이 없으면 비슷한 실수를 반복합니다.
-
-- nested card 남발
-- decorative circle / pill / accent spam
-- product screen인데 hero 레이아웃 사용
-- weak hierarchy
-- screenshot은 많은데 실제 근거는 없음
-- “그럴듯한 SaaS”처럼 보이지만 실제론 빈약한 구조
-
-그래서 SummitHarness는 디자인도 source처럼 다룹니다.
-
-기본 제공 pack은 두 계열에서 영향을 받습니다.
-
-- `awesome-design-md`: 문서/스타일 reference 발상
-- `impeccable`: product-ui polish, anti-pattern, hierarchy discipline 발상
-
-하지만 그대로 가져다 쓰지 않고, SummitHarness 작업 흐름에 맞게 다시 정리했습니다.
-
-## 설치
+### 설치
 
 ```bash
 git clone https://github.com/summit1123/SummitHarness.git
@@ -100,25 +79,32 @@ cd SummitHarness
 python3 install.py
 ```
 
-## bootstrap
+### 프로젝트 bootstrap
 
 작업할 저장소에서:
 
 ```bash
 python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 python3 scripts/preflight.py run
+python3 scripts/summit_start.py init --profile <proposal-only|planning-only|build-direct|idea-to-service> --goal "<goal>"
+python3 scripts/summit_intake.py init --mode <proposal|prd|implementation|product-ui>
+python3 scripts/summit_research.py init --mode <proposal|prd|implementation|product-ui>
 ```
 
-그 다음 해야 할 일은 보통 이 순서입니다.
+## 권장 진행 순서
 
-1. `.codex-loop/prd/PRD.md`와 `SUMMARY.md`를 실제 목표에 맞게 고칩니다.
-2. `.codex-loop/design/DESIGN.md`에서 `Preset`과 `Reference-Pack`을 정합니다.
-3. 필요하면 `.codex-loop/design/reference-packs/`의 pack을 복제해서 프로젝트 전용으로 수정합니다.
-4. proposal 작업이면 `docs/submissions/proposal.md`부터 작성합니다.
-5. source review -> render -> pdf review 순서로 검수합니다.
-6. context를 refresh하고 Ralph를 시작합니다.
+1. `.codex-loop/workflow/ONBOARDING.md`에 이번 런의 목표, 범위, 승인권자, evidence bar를 적습니다.
+2. 아이디어가 열려 있으면 `.codex-loop/workflow/IDEAS.md`에서 옵션을 비교하고 하나를 고릅니다.
+3. `.codex-loop/intake/ANSWERS.md`와 `.codex-loop/intake/APPROVAL.md`로 요청자 Q&A와 승인 기준을 잠급니다.
+4. `.codex-loop/research/PLAN.md`, `FINDINGS.md`, `APPROVAL.md`로 research 방향과 단계별 실행안을 잠급니다.
+5. `.codex-loop/prd/PRD.md`, `SUMMARY.md`, `.codex-loop/design/DESIGN.md`를 승인된 방향에 맞게 정리합니다.
+6. 필요하면 `.codex-loop/design/reference-packs/`에서 pack을 고르거나 프로젝트 전용으로 복제합니다.
+7. proposal 작업이면 `docs/submissions/proposal.md`를 먼저 씁니다.
+8. source review, render, pdf review 순서로 검수합니다.
+9. `python3 scripts/context_engine.py refresh --source bootstrap`로 handoff를 갱신합니다.
+10. `./ralph.sh --once` 또는 `/ralph-loop`로 실제 loop를 시작합니다.
 
-## proposal 흐름 예시
+## 제안서 작업 예시
 
 ```bash
 python3 scripts/review_submission_source.py docs/submissions/proposal.md
@@ -128,53 +114,31 @@ python3 scripts/context_engine.py refresh --source bootstrap
 ./ralph.sh --once
 ```
 
-## 실행 중 무엇을 보게 되나
+## 실제 실행 중 보게 되는 것
 
-`./ralph.sh --once`를 실행하면 이제 Codex가 끝날 때까지 조용히 멈춘 것처럼 보이지 않습니다.
+`./ralph.sh --once`를 실행하면 seed, worker, review, evaluator, replan phase가 각각 로그를 남깁니다.
 
-- `.codex-loop/history/seed-worker.log` 또는 `iteration-*-worker.log`가 **실행 직후 바로 생성**됩니다.
-- Codex가 오래 걸리면 로그에 heartbeat 줄이 주기적으로 추가됩니다.
-- seed / worker / review / evaluator / replan phase는 각각 timeout을 가집니다.
-- timeout이 나면 로그 파일 경로와 함께 명시적으로 실패합니다.
+- `.codex-loop/history/seed-worker.log`
+- `.codex-loop/history/iteration-*-worker.log`
+- `.codex-loop/reviews/iteration-*-review.log`
+- `.codex-loop/evals/iteration-*-eval.log`
 
-기본값은 `.codex-loop/config.json`의 `agent.timeout_seconds`와 `agent.heartbeat_seconds`로 조정할 수 있습니다.
+실행이 길어지면 heartbeat가 추가되고, timeout이 나면 해당 로그 파일 경로와 함께 실패가 기록됩니다.
 
-## product-ui 흐름 예시
+## bootstrap 이후 주로 보게 되는 파일
 
-1. `loop.mode`를 `product-ui`로 설정
-2. `Preset: product-ops`
-3. 적절한 `Reference-Pack` 선택
-4. 승인된 asset / screenshot 등록
-5. 구현 후 스크린샷과 상태 증거를 남김
-6. evaluator가 디자인 계약 위반까지 같이 봄
+- `.codex-loop/workflow/`: 상위 여정과 현재 stage
+- `.codex-loop/intake/`: 요청자 Q&A와 승인 문서
+- `.codex-loop/research/`: research plan, findings, approved direction
+- `.codex-loop/prd/`: PRD와 요약
+- `.codex-loop/tasks.json`, `.codex-loop/tasks/`: 현재 task graph
+- `.codex-loop/context/handoff.md`: 지금 이어서 봐야 할 압축 상태
+- `.codex-loop/evals/`: evaluator 결과
+- `.codex-loop/artifacts/source-review/`: 원고 리뷰 결과
+- `.codex-loop/artifacts/pdf-review/`: PDF 리뷰 결과
+- `.codex-loop/assets/registry.json`: 승인된 asset 목록
 
-## bootstrap 이후 생기는 것
-
-- `.codex-loop/prd/`
-- `.codex-loop/tasks.json`
-- `.codex-loop/context/`
-- `.codex-loop/evals/`
-- `.codex-loop/design/DESIGN.md`
-- `.codex-loop/design/reference-packs/`
-- `.codex-loop/assets/registry.json`
-- `.codex-loop/preflight/`
-- `docs/submissions/proposal.md`
-- `scripts/context_engine.py`
-- `scripts/review_submission_source.py`
-- `scripts/render_markdown_submission.py`
-- `scripts/review_submission_pdf.py`
-- `ralph.sh`
-
-## 사용자는 어디를 보면 되나
-
-- `.codex-loop/context/handoff.md`: 지금 무엇이 가장 중요한지
-- `.codex-loop/tasks.json`: 현재 남은 일의 구조
-- `.codex-loop/evals/`: evaluator가 왜 아직 안 끝났다고 보는지
-- `.codex-loop/artifacts/source-review/`: 문서 원본이 왜 막혔는지
-- `.codex-loop/artifacts/pdf-review/`: 첨부 PDF가 왜 막혔는지
-- `.codex-loop/assets/registry.json`: 어떤 자산이 승인되었는지
-
-## reference pack
+## 레퍼런스 팩
 
 기본 제공 pack은 아래 경로에 있습니다.
 
@@ -195,13 +159,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 `personal-skills/summit-ralph-personal/`에는 사용자 취향 overlay가 들어갑니다.
 
-예:
-
-- AI 같은 문체 금지
-- sparse page 금지
-- decorative circle/card spam 금지
-- PDF-only fix 금지
-- 표, 비교, 근거, 흐름 우선
+예: AI 같은 문체 금지, sparse page 금지, decorative circle/card spam 금지, PDF-only fix 금지, 표와 비교와 근거 우선.
 
 ## 검증
 
@@ -209,4 +167,4 @@ python3 scripts/context_engine.py refresh --source bootstrap
 python3 -m unittest discover -s tests -v
 ```
 
-플러그인 관점 설명은 [plugins/codex-ralph-loop/README.md](/Users/gimdonghyeon/Desktop/SummitHarness/plugins/codex-ralph-loop/README.md)에서 이어집니다.
+플러그인 사용 흐름은 [plugins/codex-ralph-loop/README.md](/Users/gimdonghyeon/Desktop/SummitHarness/plugins/codex-ralph-loop/README.md)에서 이어집니다.

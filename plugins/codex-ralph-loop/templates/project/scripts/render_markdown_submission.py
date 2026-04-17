@@ -53,7 +53,7 @@ def extract_title(markdown_text: str) -> str:
         stripped = line.strip()
         if stripped.startswith('# '):
             return stripped[2:].strip()
-    return 'Submission Document'
+    return '제출 문서'
 
 
 def stash_html(raw: str, bucket: list[str]) -> str:
@@ -434,7 +434,7 @@ def build_pdf(html_path: Path, pdf_path: Path) -> dict[str, str | bool]:
 def main() -> int:
     parser = argparse.ArgumentParser(description='Render Markdown submission source into HTML and PDF.')
     parser.add_argument('--input', default='docs/submissions/proposal.md', help='Markdown source file')
-    parser.add_argument('--design', default='.codex-loop/design/DESIGN.md', help='Design contract file')
+    parser.add_argument('--design', default='.codex-loop/design/DESIGN.md', help='디자인 계약 파일')
     parser.add_argument('--html-output', default='output/html/proposal.html', help='Rendered HTML output path')
     parser.add_argument('--pdf-output', default='output/pdf/proposal.pdf', help='Rendered PDF output path')
     parser.add_argument('--html-only', action='store_true', help='Skip PDF generation')

@@ -1,3 +1,3 @@
-# Loop Log
+# 루프 로그
 
-Run history will accumulate here.
+실행 이력이 여기에 누적됩니다.

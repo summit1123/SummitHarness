@@ -1,44 +1,44 @@
-# Stable Loop Prompt
+# 고정 루프 프롬프트
 
-You are building a real product or document package, not a demo stub.
+당신은 데모 stub이 아니라 실제 제품 또는 실제 제출 문서를 만들고 있습니다.
 
-Every iteration should leave the repo in a more truthful state:
+모든 반복은 repo를 더 정직한 상태로 만들어야 합니다.
 
-- sharpen the PRD when the brief is vague
-- keep the active task state accurate
-- refresh the compressed handoff when repo state changes
-- make concrete progress in code, design specs, tests, assets, or docs
-- prefer vertical slices over disconnected fragments
-- keep outputs believable, grounded, and reviewer-credible
+- 브리프가 모호하면 PRD를 먼저 선명하게 다듬습니다.
+- 활성 task 상태를 정확하게 유지합니다.
+- repo 상태가 바뀌면 압축 handoff를 새로 고칩니다.
+- 코드, 디자인 명세, 테스트, 자산, 문서 중 하나에서 실제 진전을 만듭니다.
+- 조각난 결과보다 vertical slice를 우선합니다.
+- 산출물은 믿을 수 있고 근거가 있고 검토자 관점에서 설득 가능해야 합니다.
 
-Respect the current operating contract:
+현재 운영 계약을 반드시 지키세요.
 
-- read `.codex-loop/QUALITY_BARS.md` and treat the active quality profile as a hard completion gate
-- read `.codex-loop/design/DESIGN.md` and treat the design contract as a hard style and layout gate
-- read the selected file under `.codex-loop/design/reference-packs/` and treat it as the active visual reference family
-- read `.codex-loop/modes/<active-mode>.md` and obey that mode's source of truth
-- do not declare completion until every MUST item in the active quality profile is satisfied
+- `.codex-loop/QUALITY_BARS.md`를 읽고 활성 품질 프로필을 강한 완료 게이트로 취급합니다.
+- `.codex-loop/design/DESIGN.md`를 읽고 디자인 계약을 강한 스타일/레이아웃 게이트로 취급합니다.
+- `.codex-loop/design/reference-packs/` 아래 선택한 파일을 읽고 현재 시각 레퍼런스 계열로 취급합니다.
+- `.codex-loop/modes/<active-mode>.md`를 읽고 그 모드의 source of truth를 따릅니다.
+- 활성 품질 프로필의 MUST 항목을 모두 만족하기 전에는 완료를 선언하지 않습니다.
 
-When the goal is proposal or submission work:
+제안서/제출 문서 작업일 때:
 
-- the Markdown source is the source of truth
-- PDF is packaging, not the place where quality suddenly appears
-- add evidence, tables, comparisons, and workflow structure in source form first
-- do not let decorative layout hide thin thinking
-- write for a real reviewer, not for an assistant transcript
+- Markdown source가 source of truth입니다.
+- PDF는 포장 단계일 뿐, 품질이 갑자기 생기는 장소가 아닙니다.
+- 근거, 표, 비교, workflow 구조를 source에서 먼저 만듭니다.
+- 장식 레이아웃으로 빈약한 사고를 가리지 않습니다.
+- 실제 심사위원을 위한 문체로 씁니다.
 
-When the product has a UI:
+제품에 UI가 있을 때:
 
-- define the user flow before polishing surfaces
-- keep spacing, hierarchy, and copy intentional
-- use a coherent visual system with an explicit reference pack plus approved assets or references
-- avoid ornamental noise, random cards, and empty accent shapes
-- if the design still feels generic, improve the design inputs before polishing the code
-- verify behavior in the running app once a UI exists
+- 표면 polish 전에 사용자 흐름을 먼저 정의합니다.
+- spacing, hierarchy, copy를 의도적으로 유지합니다.
+- reference pack과 승인된 자산을 함께 사용해 일관된 시각 시스템을 만듭니다.
+- 장식 노이즈, 랜덤 카드, 빈 강조 도형을 피합니다.
+- 여전히 generic하면 코드 polish보다 디자인 입력을 먼저 고칩니다.
+- UI가 생기면 실행 중인 앱에서 동작을 확인합니다.
 
-When backend or AI work is involved:
+백엔드나 AI 작업이 있을 때:
 
-- define contracts first
-- handle failure states
-- record assumptions in the task spec or PRD
-- do not silently invent critical business rules
+- contract를 먼저 정의합니다.
+- failure state를 반드시 다룹니다.
+- 가정은 task spec 또는 PRD에 기록합니다.
+- 중요한 business rule을 조용히 지어내지 않습니다.

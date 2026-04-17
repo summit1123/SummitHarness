@@ -174,62 +174,62 @@ def build_review(root: Path, source_path: Path, mode: str, design_path: Path) ->
     next_actions: list[str] = []
 
     if path.suffix.lower() != '.md':
-        blockers.append('Source gate expects a Markdown document as the source of truth.')
+        blockers.append('원고 게이트는 source of truth로 Markdown 문서를 기대합니다.')
     if not title:
-        blockers.append('The source is missing a single H1 title.')
+        blockers.append('원고에 단일 H1 제목이 없습니다.')
     if placeholder_hits:
-        blockers.append('Placeholder or template markers remain in the source document.')
+        blockers.append('원고에 placeholder 또는 템플릿 문구가 그대로 남아 있습니다.')
     if not design_text:
-        warnings.append('No design contract was found. Add .codex-loop/design/DESIGN.md so layout decisions stay intentional.')
+        warnings.append('디자인 계약 문서가 없습니다. 레이아웃 판단 기준을 유지하려면 `.codex-loop/design/DESIGN.md`를 추가하세요.')
     if reference_pack and not reference_pack_text:
-        warnings.append(f'Selected reference pack `{reference_pack}` was not found under .codex-loop/design/reference-packs/.')
+        warnings.append(f'선택한 레퍼런스 팩 `{reference_pack}`을 `.codex-loop/design/reference-packs/`에서 찾지 못했습니다.')
     if assistant_hits:
-        warnings.append('The source still contains assistant-style narration. Rewrite it in reviewer-facing language.')
+        warnings.append('원고에 아직 AI 보조자처럼 설명하는 말투가 남아 있습니다. 심사위원이 읽는 문장으로 다시 써야 합니다.')
 
     if mode_name == 'proposal':
         if words < 600:
-            blockers.append('Proposal source is too thin. Expand the actual substance before relying on layout.')
+            blockers.append('제안서 원고의 실질 내용이 부족합니다. 레이아웃보다 먼저 내용 밀도를 보강해야 합니다.')
         elif words < 1000:
-            warnings.append('Proposal source is still light. Add more evidence, comparison, or operational detail.')
+            warnings.append('제안서 원고가 아직 가볍습니다. 근거, 비교표, 운영 디테일을 더 보강해야 합니다.')
         if len(sections) < 5:
-            blockers.append('Proposal source needs more structured sections for problem, solution, feasibility, business path, and effect.')
+            blockers.append('제안서에는 문제 정의, 해결 방안, 실현 가능성, 사업화 경로, 기대 효과를 나누는 구조화된 섹션이 더 필요합니다.')
         if tables < 1:
-            blockers.append('Proposal source needs at least one real comparison or structure table.')
+            blockers.append('제안서에는 실제 비교표 또는 구조 표가 최소 1개 이상 필요합니다.')
         if sum(1 for value in coverage.values() if value) < 4:
-            warnings.append('Proposal source is missing one or more core narrative blocks such as feasibility, business path, or expected effect.')
+            warnings.append('제안서에서 실현 가능성, 사업화 경로, 기대 효과 같은 핵심 서사 블록이 하나 이상 비어 있을 수 있습니다.')
         if preset != 'document-editorial':
-            warnings.append('Proposal mode should normally use the document-editorial preset.')
+            warnings.append('제안서 모드는 보통 `document-editorial` 프리셋을 사용해야 합니다.')
         if not reference_pack:
-            warnings.append('Proposal mode should usually select a reference pack so the visual direction is explicit.')
+            warnings.append('제안서 모드에서는 시각 방향을 명확히 하기 위해 레퍼런스 팩을 고르는 편이 좋습니다.')
         if link_refs < 1:
-            warnings.append('Consider adding source-backed evidence links or references for reviewer trust.')
+            warnings.append('심사 신뢰도를 위해 근거 링크나 출처 표기를 보강하는 편이 좋습니다.')
     elif mode_name == 'prd':
         if words < 500:
-            blockers.append('PRD source is too short to drive execution truthfully.')
+            blockers.append('PRD 원고가 너무 짧아 실제 실행 기준으로 삼기 어렵습니다.')
         if len(sections) < 5:
-            blockers.append('PRD needs sections for users, scope, requirements, constraints, and acceptance.')
+            blockers.append('PRD에는 사용자, 범위, 요구사항, 제약사항, 수용 기준 섹션이 필요합니다.')
         lowered = text.lower()
         for keyword, label in [('user', 'users'), ('requirement', 'requirements'), ('acceptance', 'acceptance criteria')]:
             if keyword not in lowered and label not in lowered and label.replace(' ', '') not in lowered:
-                warnings.append(f'PRD may be missing an explicit {label} section.')
+                warnings.append(f'PRD에 `{label}` 섹션이 명시적으로 없을 수 있습니다.')
     elif mode_name == 'product-ui':
         if preset != 'product-ops':
-            warnings.append('Product UI mode should usually use the product-ops preset.')
+            warnings.append('Product UI 모드는 보통 `product-ops` 프리셋을 사용해야 합니다.')
         if not reference_pack:
-            warnings.append('Product UI mode should select a reference pack before visual polishing begins.')
+            warnings.append('Product UI 모드에서는 시각 다듬기를 시작하기 전에 레퍼런스 팩을 먼저 정해야 합니다.')
         if image_refs < 1 and 'assets/' not in text and 'registry' not in text.lower():
-            blockers.append('Product UI source should reference actual assets, screenshots, or approved visual inputs.')
+            blockers.append('Product UI 원고에는 실제 asset, 스크린샷, 승인된 시각 입력이 포함되어야 합니다.')
         if len(sections) < 4:
-            warnings.append('Product UI source needs clearer sections for flow, screen structure, assets, and verification.')
+            warnings.append('Product UI 원고에는 플로우, 화면 구조, asset, 검증 섹션이 더 분명해야 합니다.')
     else:
         if words < 250:
-            warnings.append('Implementation mode source notes are still very short. Keep code as truth, but tighten supporting docs.')
+            warnings.append('구현 모드 보조 문서가 아직 너무 짧습니다. 코드를 진실 원본으로 두되, supporting docs는 더 정리해야 합니다.')
 
     if blockers:
-        next_actions.append('Fix the Markdown source first; do not treat PDF output as the primary artifact.')
+        next_actions.append('PDF보다 먼저 Markdown 원고 자체를 수정해야 합니다.')
     if mode_name == 'proposal':
-        next_actions.append('Run python3 scripts/render_markdown_submission.py after the source review passes.')
-    next_actions.append('Refresh the context packet so Ralph sees the latest source truth.')
+        next_actions.append('원고 리뷰를 통과한 뒤 `python3 scripts/render_markdown_submission.py`를 실행합니다.')
+    next_actions.append('Ralph가 최신 source of truth를 보도록 컨텍스트 패킷을 갱신합니다.')
 
     preview_lines = [line.rstrip() for line in text.splitlines()[:40] if line.strip()]
 
@@ -270,33 +270,33 @@ def build_review(root: Path, source_path: Path, mode: str, design_path: Path) ->
 
 def render_review(review: dict[str, Any]) -> str:
     lines = [
-        '# Submission Source Review',
+        '# 제출 원고 점검 결과',
         '',
-        f"- Generated: {review['generatedAt']}",
-        f"- Mode: {review['mode']}",
-        f"- File: {review['file']['name']}",
-        f"- Design preset: {review['design']['preset']}",
-        f"- Reference pack: {review['design'].get('referencePack') or 'none'}",
-        f"- Word count: {review['stats']['wordCount']}",
-        f"- Sections: {review['stats']['sectionCount']}",
-        f"- Tables: {review['stats']['tableCount']}",
+        f"- 생성 시각: {review['generatedAt']}",
+        f"- 모드: {review['mode']}",
+        f"- 파일: {review['file']['name']}",
+        f"- 디자인 프리셋: {review['design']['preset']}",
+        f"- 레퍼런스 팩: {review['design'].get('referencePack') or '없음'}",
+        f"- 글자 수: {review['stats']['wordCount']}",
+        f"- 섹션 수: {review['stats']['sectionCount']}",
+        f"- 표 수: {review['stats']['tableCount']}",
         '',
-        '## Blockers',
-        *([f'- {item}' for item in review.get('blockers', [])] or ['- None']),
+        '## 차단 이슈',
+        *([f'- {item}' for item in review.get('blockers', [])] or ['- 없음']),
         '',
-        '## Warnings',
-        *([f'- {item}' for item in review.get('warnings', [])] or ['- None']),
+        '## 경고',
+        *([f'- {item}' for item in review.get('warnings', [])] or ['- 없음']),
         '',
-        '## Suggested Next Actions',
-        *([f'- {item}' for item in review.get('nextActions', [])] or ['- None']),
+        '## 다음 조치 제안',
+        *([f'- {item}' for item in review.get('nextActions', [])] or ['- 없음']),
         '',
-        '## Preview',
+        '## 미리보기',
     ]
     preview = review.get('preview', '')
     if preview:
         lines.extend(['```text', preview, '```'])
     else:
-        lines.append('- No preview available.')
+        lines.append('- 미리보기 텍스트가 없습니다.')
     lines.append('')
     return '\n'.join(lines)
 
@@ -312,11 +312,11 @@ def write_review_files(root: Path, review: dict[str, Any]) -> tuple[Path, Path]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Review Markdown document source before rendering or final submission packaging.')
-    parser.add_argument('source', nargs='?', default='docs/submissions/proposal.md', help='Markdown source file to review')
-    parser.add_argument('--mode', help='Override document mode')
-    parser.add_argument('--design', default='.codex-loop/design/DESIGN.md', help='Design contract file')
-    parser.add_argument('--stdout-only', action='store_true', help='Print the review instead of writing artifact files')
+    parser = argparse.ArgumentParser(description='렌더링이나 최종 제출 패키징 전에 Markdown 원고를 점검합니다.')
+    parser.add_argument('source', nargs='?', default='docs/submissions/proposal.md', help='점검할 Markdown 원고 파일')
+    parser.add_argument('--mode', help='문서 모드를 직접 지정')
+    parser.add_argument('--design', default='.codex-loop/design/DESIGN.md', help='디자인 계약 파일')
+    parser.add_argument('--stdout-only', action='store_true', help='산출물 파일 대신 리뷰 결과를 stdout으로 출력')
     args = parser.parse_args()
 
     root = project_root()

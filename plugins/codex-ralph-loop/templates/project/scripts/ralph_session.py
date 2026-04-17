@@ -128,7 +128,7 @@ def cmd_status(args: argparse.Namespace) -> int:
         return 0
 
     print(f"active: {bool(current.get('active'))}")
-    print(f"status: {current.get('status', 'unknown')}")
+    print(f"상태: {current.get('status', '알 수 없음')}")
     print(f"current iteration: {current.get('currentIteration', 0)}")
     print(f"completion promise: {current.get('completionPromise', DEFAULT_COMPLETION_PROMISE)}")
     print(f"max iterations: {current.get('maxIterations', DEFAULT_MAX_ITERATIONS)}")

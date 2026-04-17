@@ -58,9 +58,9 @@ def copy_file(src: Path, dst: Path, force: bool) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Seed a project with SummitHarness runtime files.')
-    parser.add_argument('target', nargs='?', default='.', help='Project directory to initialize')
-    parser.add_argument('--force', action='store_true', help='Overwrite existing runtime files')
+    parser = argparse.ArgumentParser(description='프로젝트에 SummitHarness 런타임 파일을 초기화합니다.')
+    parser.add_argument('target', nargs='?', default='.', help='초기화할 프로젝트 디렉터리')
+    parser.add_argument('--force', action='store_true', help='이미 있는 런타임 파일을 덮어씁니다')
     args = parser.parse_args()
 
     plugin_root = Path(__file__).resolve().parents[1]
@@ -83,6 +83,9 @@ def main() -> int:
         'import_hwpx_preview.py',
         'ralph_session.py',
         'context_engine.py',
+        'summit_intake.py',
+        'summit_research.py',
+        'summit_start.py',
         'preflight.py',
         'asset_registry.py',
         'review_submission_pdf.py',
@@ -99,6 +102,9 @@ def main() -> int:
         'scripts/import_hwpx_preview.py',
         'scripts/ralph_session.py',
         'scripts/context_engine.py',
+        'scripts/summit_intake.py',
+        'scripts/summit_research.py',
+        'scripts/summit_start.py',
         'scripts/preflight.py',
         'scripts/asset_registry.py',
         'scripts/review_submission_pdf.py',
@@ -118,18 +124,24 @@ def main() -> int:
             encoding='utf-8',
         )
 
-    print(f'Initialized SummitHarness runtime in {target_root}')
-    print('Next steps:')
-    print('  1. Run python3 scripts/preflight.py run')
-    print('  2. Lock .codex-loop/prd/PRD.md, SUMMARY.md, and .codex-loop/design/DESIGN.md to the real goal')
-    print('  3. Pick or customize a reference pack in .codex-loop/design/reference-packs/ and record it in DESIGN.md')
-    print('  4. If this is a proposal or submission flow, edit docs/submissions/proposal.md first')
-    print('  5. Run python3 scripts/review_submission_source.py docs/submissions/proposal.md')
-    print('  6. Render with python3 scripts/render_markdown_submission.py once the source gate passes')
-    print('  7. Add real local build, lint, test, or screenshot commands in .codex-loop/config.json')
-    print('  8. Use python3 scripts/context_engine.py refresh --source bootstrap to build the first handoff packet')
-    print('  9. Run ./ralph.sh --once or start /ralph-loop inside Codex')
-    print('     -> the first Ralph run will replace the bootstrap template tasks with a project-specific task graph')
+    print(f'SummitHarness 런타임을 초기화했습니다: {target_root}')
+    print('다음 단계:')
+    print('  1. `python3 scripts/preflight.py run`으로 환경 점검을 실행합니다.')
+    print('  2. `python3 scripts/summit_start.py init --profile <proposal-only|planning-only|build-direct|idea-to-service> --goal "<goal>"` 로 워크플로우를 시작합니다.')
+    print('  3. `.codex-loop/workflow/ONBOARDING.md`를 채우고, 필요하면 `.codex-loop/workflow/IDEAS.md`도 정리합니다.')
+    print('  4. `python3 scripts/summit_intake.py init --mode <proposal|prd|implementation|product-ui>` 를 실행합니다.')
+    print('  5. 요청자 Q&A를 `.codex-loop/intake/ANSWERS.md`에 기록하고 `.codex-loop/intake/APPROVAL.md`에서 승인을 잠급니다.')
+    print('  6. `python3 scripts/summit_research.py init --mode <proposal|prd|implementation|product-ui>` 를 실행합니다.')
+    print('  7. 단계형 리서치 계획을 작성하고 `.codex-loop/research/APPROVAL.md`에서 승인을 잠급니다.')
+    print('  8. 승인된 리서치 방향에 맞춰 `.codex-loop/prd/PRD.md`, `SUMMARY.md`, `.codex-loop/design/DESIGN.md`를 확정합니다.')
+    print('  9. `.codex-loop/design/reference-packs/`에서 레퍼런스 팩을 고르거나 커스터마이징하고 `DESIGN.md`에 기록합니다.')
+    print(' 10. 제안서/제출 흐름이라면 먼저 `docs/submissions/proposal.md`를 편집합니다.')
+    print(' 11. `python3 scripts/review_submission_source.py docs/submissions/proposal.md`로 원고 리뷰를 돌립니다.')
+    print(' 12. 원고 게이트를 통과하면 `python3 scripts/render_markdown_submission.py`로 렌더링합니다.')
+    print(' 13. `.codex-loop/config.json`에 실제 local build, lint, test, screenshot 명령을 추가합니다.')
+    print(' 14. `python3 scripts/context_engine.py refresh --source bootstrap`로 첫 handoff packet을 만듭니다.')
+    print(' 15. `./ralph.sh --once`를 실행하거나 Codex 안에서 `/ralph-loop`를 시작합니다.')
+    print('     -> 첫 Ralph 실행은 bootstrap template task를 프로젝트 전용 task graph로 교체합니다. 단, intake와 research 승인이 잠겨 있어야 합니다.')
     return 0
 
 

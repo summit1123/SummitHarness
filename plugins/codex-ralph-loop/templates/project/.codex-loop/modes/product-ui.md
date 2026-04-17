@@ -1,24 +1,24 @@
-# Mode Contract: Product UI
+# 모드 계약: 제품 UI
 
-Use this mode when the goal is a screen system, interaction flow, or polished front-end product surface.
+이 모드는 화면 시스템, 상호작용 흐름, polished front-end 표면을 만들 때 사용합니다.
 
-## Source of truth
+## source of truth
 
 - `.codex-loop/design/DESIGN.md`
-- the selected reference pack under `.codex-loop/design/reference-packs/`
-- approved assets and screenshots
-- the actual UI implementation
+- `.codex-loop/design/reference-packs/` 아래 선택한 reference pack
+- 승인된 assets와 screenshots
+- 실제 UI 구현 결과
 - `.codex-loop/tasks.json`
 
-## Completion bar
+## 완료 기준
 
-- The primary flow is clear before decorative detail.
-- The selected reference pack and approved assets or references drive the interface.
-- Runtime screenshots prove the UI states touched.
-- The result does not look like generic AI output.
+- 장식보다 먼저 핵심 흐름이 분명합니다.
+- 선택한 reference pack과 승인된 자산이 실제 인터페이스를 끌고 갑니다.
+- 런타임 스크린샷이 다룬 UI 상태를 증명합니다.
+- 결과가 generic한 AI 출력처럼 보이지 않습니다.
 
-## Fail when
+## 실패 조건
 
-- Empty accents, circles, card spam, or split layouts are carrying the design.
-- There is no runtime evidence for the claimed polish.
-- The design contract is vague or ignored.
+- 빈 강조 요소, 동그라미, card spam, split layout이 디자인을 대신합니다.
+- 주장한 polish를 뒷받침하는 런타임 증거가 없습니다.
+- 디자인 계약이 모호하거나 무시되고 있습니다.

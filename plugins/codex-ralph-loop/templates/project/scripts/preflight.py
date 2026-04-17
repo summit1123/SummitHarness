@@ -163,48 +163,48 @@ def render_report(status: dict[str, Any]) -> str:
         version = f" - {item['version']}" if item.get('version') else ''
         return f"- {item['name']}: {state}{version}"
 
-    blockers = [f'- {item}' for item in status['blockers']] or ['- None']
-    warnings = [f'- {item}' for item in status['warnings']] or ['- None']
+    blockers = [f'- {item}' for item in status['blockers']] or ['- 없음']
+    warnings = [f'- {item}' for item in status['warnings']] or ['- 없음']
     lines = [
-        '# Preflight Report',
+        '# 사전 점검 리포트',
         '',
-        f"- Generated: {status['timestamp']}",
-        f"- Project root: {status['projectRoot']}",
+        f"- 생성 시각: {status['timestamp']}",
+        f"- 프로젝트 루트: {status['projectRoot']}",
         '',
-        '## Blockers',
+        '## 차단 이슈',
         *blockers,
         '',
-        '## Warnings',
+        '## 경고',
         *warnings,
         '',
-        '## Required Tools',
+        '## 필수 도구',
         *(tool_line(item) for item in status['requiredTools']),
         '',
-        '## Optional Tools',
+        '## 선택 도구',
         *(tool_line(item) for item in status['optionalTools']),
         '',
-        '## Browser For Rendering',
-        f"- chrome: {'ok' if status['chrome']['present'] else 'missing'}",
-        f"- path: {status['chrome']['path'] or 'not found'}",
+        '## 렌더링 브라우저',
+        f"- chrome: {'정상' if status['chrome']['present'] else '누락'}",
+        f"- 경로: {status['chrome']['path'] or '찾지 못함'}",
         '',
-        '## Environment',
-        *(f"- {name}: {'set' if enabled else 'missing'}" for name, enabled in status['env'].items()),
+        '## 환경 변수',
+        *(f"- {name}: {'설정됨' if enabled else '누락'}" for name, enabled in status['env'].items()),
         '',
-        '## Codex Configuration',
-        f"- codex_hooks: {'enabled' if status['config']['codexHooksEnabled'] else 'disabled'}",
-        f"- rmcp_client: {'enabled' if status['config']['rmcpClientEnabled'] else 'disabled'}",
-        f"- figma MCP hint detected: {'yes' if status['config']['figmaMcpMentioned'] else 'no'}",
-        f"- Stop dispatcher installed: {'yes' if status['config']['stopDispatcherInstalled'] else 'no'}",
+        '## Codex 설정',
+        f"- codex_hooks: {'활성화' if status['config']['codexHooksEnabled'] else '비활성화'}",
+        f"- rmcp_client: {'활성화' if status['config']['rmcpClientEnabled'] else '비활성화'}",
+        f"- figma MCP 힌트 감지: {'예' if status['config']['figmaMcpMentioned'] else '아니오'}",
+        f"- Stop dispatcher 설치 여부: {'예' if status['config']['stopDispatcherInstalled'] else '아니오'}",
         '',
-        '## Workspace Detection',
-        *(f"- {key}: {'yes' if value else 'no'}" for key, value in status['workspace'].items()),
+        '## 워크스페이스 감지',
+        *(f"- {key}: {'예' if value else '아니오'}" for key, value in status['workspace'].items()),
         '',
     ]
     return '\n'.join(lines) + '\n'
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Run SummitHarness preflight checks.')
+    parser = argparse.ArgumentParser(description='SummitHarness 사전 점검을 실행합니다.')
     parser.add_argument('command', nargs='?', default='run', choices=['run'])
     parser.parse_args()
 
@@ -214,14 +214,14 @@ def main() -> int:
     write_json(report_root / 'status.json', status)
     write_text(report_root / 'REPORT.md', render_report(status))
 
-    print(f"Wrote preflight status to {report_root / 'status.json'}")
-    print(f"Wrote preflight report to {report_root / 'REPORT.md'}")
+    print(f"사전 점검 상태를 저장했습니다: {report_root / 'status.json'}")
+    print(f"사전 점검 리포트를 저장했습니다: {report_root / 'REPORT.md'}")
     if status['blockers']:
-        print('Blockers detected:')
+        print('차단 이슈가 발견되었습니다:')
         for item in status['blockers']:
             print(f'- {item}')
         return 2
-    print('Preflight passed without blockers.')
+    print('차단 이슈 없이 사전 점검을 통과했습니다.')
     return 0
 
 
