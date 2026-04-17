@@ -12,23 +12,24 @@ Choose the right top-level workflow profile, lock the onboarding answers, and ma
 2. If the current repo looks like the SummitHarness source or plugin repo itself, do not assume it should be bootstrapped in place. First distinguish between:
    - improving the harness itself
    - using the harness in a separate target project
-3. Decide which workflow profile best fits the request:
+3. Before deciding any workflow profile, ask the user in plain language what they want to do in this run and where they want the run to stop.
+4. Decide which workflow profile best fits the request:
    - `proposal-only`: reviewer-facing document or submission first
    - `planning-only`: PRD, task graph, and approval package first
    - `build-direct`: idea is already locked and implementation should start quickly
    - `idea-to-service`: idea discovery through design and implementation in one journey
-4. Ask the onboarding questions needed to truly lock the path. Use multiple passes when the request is still vague. Cover at least:
+5. Ask the onboarding questions needed to truly lock the path. Use multiple passes when the request is still vague. Cover at least:
    - final deliverable
    - whether ideation is still open
    - which domains are in scope
    - who approves the path
    - what research depth or evidence collection is required first
    - what evidence bar defines honest completion
-5. If the answers are not explicit yet, stop there and wait. Resume onboarding until the workflow profile, goal sentence, scope, approval path, and evidence bar are explicit. Do not choose a workflow profile or goal sentence by guess.
-6. Run `python3 scripts/summit_start.py init --profile <profile> --goal "<goal>"` only after the workflow profile, goal, scope, approval path, and evidence bar are explicit or user-confirmed.
-7. Fill `.codex-loop/workflow/ONBOARDING.md` and `.codex-loop/workflow/IDEAS.md` with the final answers and chosen direction.
-8. Initialize or refresh intake and research docs for the active stage mode.
-9. Refresh the compressed context and state clearly which stage is active, which stages come next, and whether task seeding should already happen.
+6. If the answers are not explicit yet, stop there and wait. Resume onboarding until the workflow profile, goal sentence, scope, approval path, and evidence bar are explicit. Do not choose a workflow profile or goal sentence by guess.
+7. Run `python3 scripts/summit_start.py init --profile <profile> --goal "<goal>"` only after the workflow profile, goal, scope, approval path, and evidence bar are explicit or user-confirmed.
+8. Fill `.codex-loop/workflow/ONBOARDING.md` and `.codex-loop/workflow/IDEAS.md` with the final answers and chosen direction.
+9. Initialize or refresh intake and research docs for the active stage mode.
+10. Refresh the compressed context and state clearly which stage is active, which stages come next, and whether task seeding should already happen.
 
 ## Rules
 

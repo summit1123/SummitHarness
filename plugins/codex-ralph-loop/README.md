@@ -122,6 +122,7 @@ python3 scripts/install_home_local.py
 ```bash
 python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 python3 scripts/preflight.py run
+# Codex 안에서는 /ralph-start 로 시작하는 것을 권장
 python3 scripts/summit_start.py init --profile <proposal-only|planning-only|build-direct|idea-to-service> --goal "<goal>"
 python3 scripts/summit_intake.py init --mode <proposal|prd|implementation|product-ui>
 python3 scripts/summit_research.py init --mode <proposal|prd|implementation|product-ui>
@@ -129,16 +130,17 @@ python3 scripts/summit_research.py init --mode <proposal|prd|implementation|prod
 
 그다음:
 
-1. workflow onboarding과 ideas를 정리합니다.
-2. intake 질문지와 승인 문서를 잠급니다.
-3. research plan, findings, recommended direction을 잠급니다.
-4. PRD, SUMMARY, DESIGN.md를 현재 방향에 맞게 고칩니다.
-5. reference pack을 선택합니다.
-6. proposal이면 Markdown source부터 씁니다.
-7. source review -> render -> pdf review 순서로 검수합니다.
-8. context를 refresh합니다.
-9. Ralph를 실행합니다.
-10. evaluator가 goal과 task drift를 계속 다시 판단합니다.
+1. 먼저 사용자에게 이번 런에서 무엇을 하고 싶은지, 어디까지 진행하면 되는지 확인합니다.
+2. workflow onboarding과 ideas를 정리합니다.
+3. intake 질문지와 승인 문서를 잠급니다.
+4. research plan, findings, recommended direction을 잠급니다.
+5. PRD, SUMMARY, DESIGN.md를 현재 방향에 맞게 고칩니다.
+6. reference pack을 선택합니다.
+7. proposal이면 Markdown source부터 씁니다.
+8. source review -> render -> pdf review 순서로 검수합니다.
+9. context를 refresh합니다.
+10. Ralph를 실행합니다.
+11. evaluator가 goal과 task drift를 계속 다시 판단합니다.
 
 ## 제안서 흐름 예시
 

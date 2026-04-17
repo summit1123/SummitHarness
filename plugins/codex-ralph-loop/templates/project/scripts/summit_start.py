@@ -139,6 +139,8 @@ SEED_READY_STAGES = {
 }
 
 COMMON_ONBOARDING = [
+    '이번 런에서 지금 사용자가 하고 싶은 일은 무엇입니까?',
+    '이번 런은 어디까지 진행하면 된다고 보십니까? 즉, 이번에 멈출 지점은 어디입니까?',
     '이번 런의 최종 산출물은 무엇입니까?',
     '이번 런에서 반드시 honest COMPLETE라고 부를 수 있는 기준은 무엇입니까?',
     '이미 가지고 있는 입력 자료는 무엇입니까? 예: 공모전 요강, PRD, repo, PDF, Figma, screenshots',
@@ -197,7 +199,7 @@ def build_onboarding_markdown(profile: str, goal: str) -> str:
         f'목표: {goal or "대기 중."}',
         '상태: 초안',
         '',
-        '이 문서는 `/ralph-start` 또는 `python3 scripts/summit_start.py init ...` 이후 가장 먼저 잠그는 상위 온보딩 문서입니다.',
+        '이 문서는 `/ralph-start` 이후 가장 먼저 잠그는 상위 온보딩 문서입니다. 첫 질문은 사용자가 지금 무엇을 하고 싶은지 확인하는 것입니다.',
         '',
         '## 공통 질문',
     ]
@@ -460,7 +462,7 @@ def command_init(root: Path, profile: str, goal: str, force: bool) -> int:
     sync_status_file(state_dir, normalized, goal)
     print(f'Summit 워크플로우 `{normalized}` 를 초기화했습니다: {workflow_dir_from(state_dir)}')
     print('다음 단계:')
-    print('  1. `workflow/ONBOARDING.md`에 실제 온보딩 답변을 적습니다.')
+    print('  1. `workflow/ONBOARDING.md`에 먼저 "이번 런에서 지금 사용자가 하고 싶은 일"부터 적습니다.')
     print('  2. 아이디어가 열려 있다면 `workflow/IDEAS.md`에서 옵션을 비교하고 하나를 잠급니다.')
     print('  3. 현재 단계 모드에 맞게 intake 승인과 research 승인을 완료합니다.')
     print('  4. `python3 scripts/context_engine.py refresh --source workflow-start`로 컨텍스트를 갱신합니다.')
@@ -493,7 +495,7 @@ def command_status(root: Path, as_json: bool) -> int:
         return 0
     if not status.get('initialized'):
         print('워크플로우 프로필: 초기화되지 않음')
-        print('다음 단계: python3 scripts/summit_start.py init --profile <proposal-only|planning-only|build-direct|idea-to-service>')
+        print('다음 단계: 먼저 사용자에게 이번 런에서 무엇을 하고 싶은지 물은 뒤 `/ralph-start` 또는 `python3 scripts/summit_start.py init --profile ... --goal ...` 를 사용하세요.')
         return 0
     print(f"프로필: {status['profile']}")
     print(f"현재 단계: {status['currentStage']} ({status['currentMode']})")
