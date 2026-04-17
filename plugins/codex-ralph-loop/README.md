@@ -149,7 +149,7 @@ python3 scripts/review_submission_source.py docs/submissions/proposal.md
 python3 scripts/render_markdown_submission.py
 python3 scripts/review_submission_pdf.py output/pdf/proposal.pdf
 python3 scripts/context_engine.py refresh --source bootstrap
-./ralph.sh --once
+./ralph.sh
 ```
 
 ## 타임아웃 정책
@@ -166,9 +166,18 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 직접 조정하고 싶다면 `.codex-loop/config.json`의 `agent.timeout_seconds`를 수정하면 됩니다.
 
+## 반복 정책
+
+기본 루프는 `until-complete`입니다.
+
+- 템플릿 기본값은 `max_iterations: 0`, `iteration_policy: until_complete`입니다.
+- `-n` 또는 `--max-iterations`를 직접 넘긴 경우에만 bounded loop로 잠깁니다.
+- seed가 한 번 실패해도 재시도 후 로컬 recovery seed를 생성해 다음 작업으로 넘어갑니다.
+- `--once`는 smoke 또는 디버그용 예외 경로입니다.
+
 ## 실행 중 보게 되는 것
 
-`./ralph.sh --once`를 실행하면 seed, worker, review, evaluator, replan phase가 각각 로그를 남깁니다.
+기본 실행인 `./ralph.sh`를 돌리면 seed, worker, review, evaluator, replan phase가 각각 로그를 남깁니다.
 
 - `.codex-loop/history/seed-worker.log`
 - `.codex-loop/history/iteration-*-worker.log`

@@ -12,7 +12,7 @@ from typing import Any
 
 
 DEFAULT_COMPLETION_PROMISE = "<promise>COMPLETE</promise>"
-DEFAULT_MAX_ITERATIONS = 20
+DEFAULT_MAX_ITERATIONS = 0
 
 
 def now_iso() -> str:
@@ -36,6 +36,22 @@ def load_state(path: Path) -> dict[str, Any]:
 def write_state(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def normalize_max_iterations(value: int | None) -> int:
+    try:
+        parsed = int(value or 0)
+    except (TypeError, ValueError):
+        parsed = 0
+    return parsed if parsed > 0 else 0
+
+
+def display_max_iterations(value: Any) -> str:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return "until-complete"
+    return str(parsed) if parsed > 0 else "until-complete"
 
 
 def all_tasks_complete(root: Path) -> bool:
@@ -70,13 +86,14 @@ def cmd_start(args: argparse.Namespace) -> int:
         return 2
 
     timestamp = now_iso()
+    normalized_max_iterations = normalize_max_iterations(args.max_iterations)
     payload: dict[str, Any] = {
         "version": 2,
         "active": True,
         "status": "active",
         "prompt": args.prompt.strip(),
         "completionPromise": args.completion_promise,
-        "maxIterations": args.max_iterations,
+        "maxIterations": normalized_max_iterations,
         "currentIteration": 0,
         "startedAt": timestamp,
         "updatedAt": timestamp,
@@ -90,7 +107,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     print("Ralph loop armed.")
     print(f"- state: {path}")
     print(f"- completion promise: {payload['completionPromise']}")
-    print(f"- max iterations: {payload['maxIterations']}")
+    print(f"- max iterations: {display_max_iterations(payload['maxIterations'])}")
     return 0
 
 
@@ -131,7 +148,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"상태: {current.get('status', '알 수 없음')}")
     print(f"current iteration: {current.get('currentIteration', 0)}")
     print(f"completion promise: {current.get('completionPromise', DEFAULT_COMPLETION_PROMISE)}")
-    print(f"max iterations: {current.get('maxIterations', DEFAULT_MAX_ITERATIONS)}")
+    print(f"max iterations: {display_max_iterations(current.get('maxIterations', DEFAULT_MAX_ITERATIONS))}")
     print(f"require task completion: {bool(current.get('requireTaskCompletion'))}")
     return 0
 
@@ -143,7 +160,7 @@ def build_parser() -> argparse.ArgumentParser:
     start = subparsers.add_parser("start", help="Start or replace the active Ralph loop")
     start.add_argument("--prompt", required=True, help="Original task prompt to keep replaying")
     start.add_argument("--completion-promise", default=DEFAULT_COMPLETION_PROMISE, help="String that marks real completion")
-    start.add_argument("--max-iterations", type=int, default=DEFAULT_MAX_ITERATIONS, help="Maximum Stop-hook continuations before allowing the turn to end")
+    start.add_argument("--max-iterations", type=int, default=DEFAULT_MAX_ITERATIONS, help="Maximum Stop-hook continuations before allowing the turn to end. Use 0 for until-complete.")
     start.add_argument("--force", action="store_true", help="Replace an existing active loop")
     start.set_defaults(func=cmd_start)
 

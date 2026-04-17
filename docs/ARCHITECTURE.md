@@ -130,7 +130,7 @@ research approval이 잠기지 않으면 첫 task seed는 시작하지 않습니
 
 ### 5. 구현 루프
 
-`./ralph.sh` / `./ralph.sh --once`
+`./ralph.sh` (default until-complete) / `./ralph.sh --once` (smoke/debug only)
 
 외부 worker loop는 다음을 사용한다.
 

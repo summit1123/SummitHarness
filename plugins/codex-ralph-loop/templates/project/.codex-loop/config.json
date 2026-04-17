@@ -36,7 +36,7 @@
   },
   "loop": {
     "completion_promise": "COMPLETE",
-    "max_iterations": 8,
+    "max_iterations": 0,
     "mode": "implementation",
     "auto_seed_tasks": true,
     "require_intake_approval": true,
@@ -44,7 +44,10 @@
     "quality_profile": "",
     "workflow_profile": "",
     "workflow_stage": "",
-    "workflow_goal": ""
+    "workflow_goal": "",
+    "iteration_policy": "until_complete",
+    "seed_retry_attempts": 2,
+    "seed_local_recovery": true
   },
   "checks": {
     "commands": [],

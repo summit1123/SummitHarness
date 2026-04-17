@@ -141,7 +141,7 @@ def main() -> int:
     print(' 13. 원고 게이트를 통과하면 `python3 scripts/render_markdown_submission.py`로 렌더링합니다.')
     print(' 14. `.codex-loop/config.json`에 실제 local build, lint, test, screenshot 명령을 추가합니다.')
     print(' 15. `python3 scripts/context_engine.py refresh --source bootstrap`로 첫 handoff packet을 만듭니다.')
-    print(' 16. `./ralph.sh --once`를 실행하거나 Codex 안에서 `/ralph-loop`를 시작합니다.')
+    print(' 16. 기본 실행은 `./ralph.sh`입니다. `--once`는 smoke 또는 디버그용 1회 실행으로만 사용하고, 실제 Ralph 런은 `./ralph.sh` 또는 `/ralph-loop`로 시작합니다.')
     print('     -> 첫 Ralph 실행은 bootstrap template task를 프로젝트 전용 task graph로 교체합니다. 단, intake와 research 승인이 잠겨 있어야 합니다.')
     return 0
 

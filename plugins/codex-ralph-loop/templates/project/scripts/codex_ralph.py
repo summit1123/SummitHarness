@@ -125,9 +125,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "loop": {
         "completion_promise": "COMPLETE",
-        "max_iterations": 8,
+        "max_iterations": 0,
+        "iteration_policy": "until_complete",
         "mode": "implementation",
         "auto_seed_tasks": True,
+        "seed_retry_attempts": 2,
+        "seed_local_recovery": True,
         "require_intake_approval": True,
         "require_research_plan": True,
     },
@@ -148,6 +151,232 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "enabled": True,
         "refresh_each_iteration": True,
     },
+}
+
+RECOVERY_TASK_BLUEPRINTS: dict[str, list[dict[str, Any]]] = {
+    "proposal": [
+        {
+            "title": "제출 목표와 심사 기준을 잠그기",
+            "priority": "p0",
+            "summary": "제출 문서가 무엇을 해결하고 어떤 기준으로 통과해야 하는지 먼저 고정합니다.",
+            "deliverables": [
+                "docs/submissions/proposal.md",
+                ".codex-loop/prd/PRD.md",
+                ".codex-loop/prd/SUMMARY.md",
+            ],
+            "acceptance": [
+                "문제 정의, 대상 사용자, 심사 포인트, 제출 범위가 한 문서 흐름으로 정리되어 있습니다.",
+                "제출용 문체와 근거 수준이 명확하며, 작업 중 판단 기준으로 재사용할 수 있습니다.",
+                "바로 이어서 작성할 수 있는 첫 실행 단위가 분명합니다.",
+            ],
+            "notes": [
+                "검토용 메모가 아니라 제출용 문장 기준으로 정리합니다.",
+                "심사위원이 바로 읽을 수 있는 어조와 구조를 우선합니다.",
+            ],
+        },
+        {
+            "title": "제출 원고 구조와 핵심 근거를 정리하기",
+            "priority": "p0",
+            "summary": "문제 정의, 해결 구조, 기대효과, 사업화 근거를 제출 형식에 맞게 연결합니다.",
+            "deliverables": [
+                "docs/submissions/proposal.md",
+                ".codex-loop/prd/PRD.md",
+            ],
+            "acceptance": [
+                "문항 대응형 본문 구조가 잡혀 있고, 근거와 논리가 흐름대로 배치되어 있습니다.",
+                "주장만 있고 근거가 비는 단락이 줄어들어 있습니다.",
+                "남은 보강 작업이 명시적으로 드러납니다.",
+            ],
+            "notes": [
+                "과장된 마케팅 문구보다 설득 가능한 서술을 우선합니다.",
+                "필요한 시각 자료와 첨부 근거는 본문 흐름에 맞춰 정의합니다.",
+            ],
+        },
+        {
+            "title": "최종 검토와 제출 패키지 기준을 마무리하기",
+            "priority": "p1",
+            "summary": "원고, 부가 자료, 렌더 산출물을 제출 가능한 상태로 묶습니다.",
+            "deliverables": [
+                "docs/submissions/proposal.md",
+                "output/pdf/proposal.pdf",
+                ".codex-loop/artifacts/source-review/",
+                ".codex-loop/artifacts/pdf-review/",
+            ],
+            "acceptance": [
+                "source review와 PDF review 기준이 함께 충족됩니다.",
+                "문서 내용과 최종 패키징 결과물이 서로 어긋나지 않습니다.",
+                "제출 직전 확인할 체크리스트가 남아 있습니다.",
+            ],
+            "notes": [
+                "PDF만 고치지 말고 source를 기준으로 끝까지 동기화합니다.",
+                "완료 선언 전에 제출 가능 여부를 증거로 남깁니다.",
+            ],
+        },
+    ],
+    "prd": [
+        {
+            "title": "제품 목표와 acceptance bar 잠그기",
+            "priority": "p0",
+            "summary": "제품 목표, 범위, 비범위, 완료 기준을 PRD 기준으로 고정합니다.",
+            "deliverables": [
+                ".codex-loop/prd/PRD.md",
+                ".codex-loop/prd/SUMMARY.md",
+            ],
+            "acceptance": [
+                "문제, 사용자, 핵심 가치, 제약 조건이 PRD에 선명하게 적혀 있습니다.",
+                "done으로 볼 기준이 추상적 표현 없이 정리되어 있습니다.",
+                "후속 task graph 작성에 필요한 정보가 충분합니다.",
+            ],
+            "notes": [
+                "PRD가 스펙이 되도록 쓰고, 브레인스토밍 메모처럼 남기지 않습니다.",
+            ],
+        },
+        {
+            "title": "PRD와 task graph를 실행 가능하게 정리하기",
+            "priority": "p0",
+            "summary": "구현과 검증을 이어갈 수 있도록 작업 구조를 실제 순서로 만듭니다.",
+            "deliverables": [
+                ".codex-loop/tasks.json",
+                ".codex-loop/tasks/TASK-001.json",
+                ".codex-loop/tasks/TASK-002.json",
+            ],
+            "acceptance": [
+                "의존성과 우선순위가 살아 있는 task graph가 정리되어 있습니다.",
+                "각 task 파일에 deliverables와 acceptance가 적혀 있습니다.",
+                "바로 실행할 첫 task가 하나만 in_progress로 잠겨 있습니다.",
+            ],
+            "notes": [
+                "task 이름만 적지 말고 실제 산출물과 검증 방식을 남깁니다.",
+            ],
+        },
+        {
+            "title": "리스크, 오픈 질문, 승인 기준을 잠그기",
+            "priority": "p1",
+            "summary": "실행 전에 결정이 필요한 항목과 리스크 대응 기준을 정리합니다.",
+            "deliverables": [
+                ".codex-loop/prd/PRD.md",
+                ".codex-loop/research/FINDINGS.md",
+                ".codex-loop/tasks/TASK-003.json",
+            ],
+            "acceptance": [
+                "막히는 결정 항목과 후속 검증 포인트가 문서에 드러나 있습니다.",
+                "리스크가 할 일 밖으로 밀려나지 않고 task graph에 반영되어 있습니다.",
+            ],
+            "notes": [
+                "모호한 영역은 숨기지 말고 승인 기준과 함께 남깁니다.",
+            ],
+        },
+    ],
+    "product-ui": [
+        {
+            "title": "핵심 화면과 상태 기준을 잠그기",
+            "priority": "p0",
+            "summary": "핵심 사용자 흐름과 화면별 상태 기준을 먼저 고정합니다.",
+            "deliverables": [
+                ".codex-loop/design/DESIGN.md",
+                ".codex-loop/prd/PRD.md",
+                ".codex-loop/prd/SUMMARY.md",
+            ],
+            "acceptance": [
+                "핵심 화면, 상태, 사용자 흐름이 generic하지 않게 정리되어 있습니다.",
+                "디자인 금지/필수 규칙이 작업 기준으로 쓸 수 있을 만큼 구체적입니다.",
+                "레퍼런스 팩과 프로젝트별 규칙이 서로 충돌하지 않습니다.",
+            ],
+            "notes": [
+                "AI 티 나는 장식보다 화면 구조와 실제 사용 장면을 우선합니다.",
+            ],
+        },
+        {
+            "title": "핵심 화면 구현과 자산 반영하기",
+            "priority": "p0",
+            "summary": "실제 제품 화면과 필요한 자산을 적용해 첫 usable slice를 만듭니다.",
+            "deliverables": [
+                "실제 프론트엔드 파일",
+                ".codex-loop/assets/registry.json",
+                "스크린샷 또는 시각 검증 산출물",
+            ],
+            "acceptance": [
+                "핵심 사용자 흐름이 실제 화면에서 동작합니다.",
+                "필요 자산이 승인 상태로 등록되어 있고 근거가 남아 있습니다.",
+                "텍스트, 간격, 상태 전이가 레이아웃을 깨지 않습니다.",
+            ],
+            "notes": [
+                "장식용 카드나 원형 요소로 페이지를 채우지 않습니다.",
+            ],
+        },
+        {
+            "title": "스크린샷 검증과 polish 마무리하기",
+            "priority": "p1",
+            "summary": "스크린샷, console, 상태 검증을 통해 시각 완성도를 마무리합니다.",
+            "deliverables": [
+                ".codex-loop/artifacts/",
+                "검증 스크립트 또는 테스트",
+                "최종 스크린샷",
+            ],
+            "acceptance": [
+                "핵심 뷰포트에서 비어 보이거나 잘리는 영역이 없습니다.",
+                "콘솔 에러와 주요 시각 버그가 정리되어 있습니다.",
+                "완료 기준에 맞는 증거가 남아 있습니다.",
+            ],
+            "notes": [
+                "polish는 스크린샷 증거와 함께 끝냅니다.",
+            ],
+        },
+    ],
+    "implementation": [
+        {
+            "title": "구현 목표와 첫 실행 슬라이스를 잠그기",
+            "priority": "p0",
+            "summary": "무엇을 먼저 구현하고 어떻게 검증할지 첫 수직 슬라이스 기준을 세웁니다.",
+            "deliverables": [
+                ".codex-loop/prd/PRD.md",
+                ".codex-loop/prd/SUMMARY.md",
+                ".codex-loop/tasks.json",
+            ],
+            "acceptance": [
+                "첫 실행 단위와 완료 기준이 구체적으로 적혀 있습니다.",
+                "테스트 또는 검증 방법이 함께 잠겨 있습니다.",
+                "다음 구현 작업이 task graph로 이어집니다.",
+            ],
+            "notes": [
+                "scaffolding만 남기지 말고 실제 동작 단위를 정의합니다.",
+            ],
+        },
+        {
+            "title": "첫 수직 슬라이스를 구현하기",
+            "priority": "p0",
+            "summary": "사용자가 체감할 수 있는 첫 기능 단위를 코드와 함께 만듭니다.",
+            "deliverables": [
+                "실제 프로젝트 파일",
+                "테스트 또는 검증 명령",
+            ],
+            "acceptance": [
+                "작은 범위라도 end-to-end로 동작합니다.",
+                "핵심 실패 경로나 오류 처리가 존재합니다.",
+                "로컬 검증으로 다시 확인할 수 있습니다.",
+            ],
+            "notes": [
+                "막연한 계획보다 동작하는 코드 조각을 우선합니다.",
+            ],
+        },
+        {
+            "title": "검증과 남은 작업 재정리하기",
+            "priority": "p1",
+            "summary": "검증 증거를 남기고 남은 작업을 사실대로 재정리합니다.",
+            "deliverables": [
+                ".codex-loop/tasks.json",
+                ".codex-loop/logs/LOG.md",
+                "검증 로그",
+            ],
+            "acceptance": [
+                "체크, 리뷰, 목표 평가에 필요한 증거가 남아 있습니다.",
+                "done과 remaining work가 task graph에 정확히 반영됩니다.",
+            ],
+            "notes": [
+                "완료 선언보다 검증 가능한 상태 기록을 우선합니다.",
+            ],
+        },
+    ],
 }
 
 
@@ -439,8 +668,10 @@ def load_config(project_root: Path, state_dir: Path, args: argparse.Namespace) -
         config["loop"]["mode"] = args.mode
     if args.max_iterations is not None:
         config["loop"]["max_iterations"] = args.max_iterations
+        config["loop"]["iteration_policy"] = "bounded" if int(args.max_iterations) > 0 else "until_complete"
     if args.once:
         config["loop"]["max_iterations"] = 1
+        config["loop"]["iteration_policy"] = "bounded"
 
     agent_override = args.agent_cmd or os.environ.get("CODEX_RALPH_AGENT_CMD")
     if agent_override:
@@ -451,6 +682,127 @@ def load_config(project_root: Path, state_dir: Path, args: argparse.Namespace) -
         config["agent"]["review_command"] = shlex.split(review_override)
 
     return config
+
+
+def normalize_iteration_policy(config: dict[str, Any]) -> str:
+    raw_policy = str(config.get("loop", {}).get("iteration_policy", "")).strip().lower().replace("-", "_")
+    if raw_policy in {"bounded", "fixed", "capped"}:
+        return "bounded"
+    if raw_policy in {"until_complete", "untilcomplete", "unbounded", "infinite", "forever"}:
+        return "until_complete"
+
+    try:
+        raw_limit = int(config.get("loop", {}).get("max_iterations", 0) or 0)
+    except (TypeError, ValueError):
+        raw_limit = 0
+    return "bounded" if raw_limit > 0 else "until_complete"
+
+
+def iteration_limit(config: dict[str, Any]) -> int | None:
+    policy = normalize_iteration_policy(config)
+    try:
+        raw_limit = int(config.get("loop", {}).get("max_iterations", 0) or 0)
+    except (TypeError, ValueError):
+        raw_limit = 0
+    if policy == "until_complete" or raw_limit <= 0:
+        return None
+    return raw_limit
+
+
+def state_iteration_limit(max_iterations: int | None) -> int | str:
+    return "until-complete" if max_iterations is None else max_iterations
+
+
+def seed_retry_attempts(config: dict[str, Any]) -> int:
+    raw_value = config.get("loop", {}).get("seed_retry_attempts", 2)
+    try:
+        attempts = int(raw_value)
+    except (TypeError, ValueError):
+        attempts = 2
+    return max(0, attempts)
+
+
+def seed_local_recovery_enabled(config: dict[str, Any]) -> bool:
+    return bool(config.get("loop", {}).get("seed_local_recovery", True))
+
+
+def recovery_goal_text(state_dir: Path, config: dict[str, Any]) -> str:
+    workflow_status = load_workflow_status(state_dir)
+    goal = str(workflow_status.get("goal", "")).strip()
+    if goal:
+        return goal
+
+    for candidate in (
+        read_text(state_dir / "prd" / "SUMMARY.md"),
+        read_text(state_dir / "prd" / "PRD.md"),
+        read_text(state_dir / "PROMPT.md"),
+    ):
+        line = first_nonempty_line(candidate, limit=80)
+        if line and "아직" not in line:
+            return line.rstrip(".")
+
+    fallback = {
+        "proposal": "제출용 제안서 패키지 정리",
+        "prd": "실행 가능한 PRD 정리",
+        "product-ui": "핵심 제품 화면 개선",
+        "implementation": "첫 구현 슬라이스 완성",
+    }
+    return fallback.get(active_mode_name(config), "SummitHarness 작업")
+
+
+def recovery_blueprints_for_mode(mode_name: str) -> list[dict[str, Any]]:
+    return deepcopy(RECOVERY_TASK_BLUEPRINTS.get(mode_name, RECOVERY_TASK_BLUEPRINTS["implementation"]))
+
+
+def recover_seed_task_graph(config: dict[str, Any], state_dir: Path, reason: str) -> str:
+    mode_name = active_mode_name(config)
+    tasks_dir = state_dir / "tasks"
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+    for existing in tasks_dir.glob("TASK-*.json"):
+        existing.unlink()
+
+    blueprints = recovery_blueprints_for_mode(mode_name)
+    project_name = recovery_goal_text(state_dir, config)
+    task_rows: list[dict[str, Any]] = []
+
+    for index, blueprint in enumerate(blueprints, start=1):
+        task_id = f"{index:03d}"
+        status = "in_progress" if index == 1 else "todo"
+        priority = str(blueprint.get("priority", "p1"))
+        file_rel = f"tasks/TASK-{task_id}.json"
+        depends_on = [f"{dep:03d}" for dep in range(1, index)]
+        task_rows.append(
+            {
+                "id": task_id,
+                "title": blueprint["title"],
+                "status": status,
+                "priority": priority,
+                "file": file_rel,
+            }
+        )
+        task_payload = {
+            "id": task_id,
+            "title": blueprint["title"],
+            "status": status,
+            "priority": priority,
+            "summary": blueprint["summary"],
+            "dependsOn": depends_on,
+            "deliverables": list(blueprint.get("deliverables", [])),
+            "acceptance": list(blueprint.get("acceptance", [])),
+            "notes": list(blueprint.get("notes", [])) + [f"자동 복구 seed 사유: {reason}"],
+        }
+        write_json(state_dir / file_rel, task_payload)
+
+    tasks_index = {
+        "project": project_name,
+        "selection": "priority-order",
+        "tasks": task_rows,
+        "source": "auto-recovery-seed",
+        "recoveryReason": reason,
+        "generatedAt": now_iso(),
+    }
+    write_json(state_dir / "tasks.json", tasks_index)
+    return f"Seed 실패 후 자동 복구 task graph를 생성했습니다. mode={mode_name}, project={project_name}"
 
 
 def load_tasks_index(state_dir: Path) -> dict[str, Any]:
@@ -808,6 +1160,43 @@ Planning rules:
 스티어링:
 {steering_block}
 '''
+
+
+def build_seed_retry_prompt(
+    *,
+    config: dict[str, Any],
+    state_dir: Path,
+    steering_text: str,
+    git_available: bool,
+    attempt: int,
+    total_attempts: int,
+    previous_result: dict[str, Any],
+) -> str:
+    if previous_result.get("timed_out"):
+        failure_summary = format_timeout_summary("Task bootstrap", previous_result)
+    else:
+        failure_summary = first_nonempty_line(previous_result.get("last_message", "")) or "Task bootstrap did not produce a usable task graph."
+
+    base_prompt = build_task_seed_prompt(
+        config=config,
+        state_dir=state_dir,
+        steering_text=steering_text,
+        git_available=git_available,
+    )
+    return f"""A previous task-seed attempt did not leave a usable task graph.
+
+Retry attempt: {attempt} / {total_attempts}
+Failure summary: {failure_summary}
+
+On this retry you must:
+- rewrite `.codex-loop/tasks.json`
+- ensure the placeholder template tasks are replaced
+- mark exactly one actionable task as `in_progress`
+- prefer a minimal honest 3-task graph over another empty or generic result
+- keep moving even if the repo context is imperfect; write the narrowest truthful graph you can support
+
+{base_prompt}
+"""
 
 
 def build_worker_prompt(
@@ -1255,6 +1644,104 @@ NEXT: {evaluation.get('next', '다음 단계 안내가 없습니다.')}
 """
 
 
+def run_task_seed_with_recovery(
+    *,
+    config: dict[str, Any],
+    state_dir: Path,
+    project_root: Path,
+    steering_text: str,
+    git_available: bool,
+) -> dict[str, Any]:
+    total_attempts = 1 + seed_retry_attempts(config)
+    previous_result: dict[str, Any] = {}
+    last_failure_summary = "Task bootstrap did not produce a usable task graph."
+
+    for attempt in range(1, total_attempts + 1):
+        label = "task-seed" if attempt == 1 else f"task-seed-retry-{attempt - 1:02d}"
+        last_path = state_dir / "history" / ("seed-worker-last.md" if attempt == 1 else f"seed-worker-retry-{attempt - 1:02d}-last.md")
+        log_path = state_dir / "history" / ("seed-worker.log" if attempt == 1 else f"seed-worker-retry-{attempt - 1:02d}.log")
+        prompt = build_task_seed_prompt(
+            config=config,
+            state_dir=state_dir,
+            steering_text=steering_text,
+            git_available=git_available,
+        )
+        if attempt > 1:
+            prompt = build_seed_retry_prompt(
+                config=config,
+                state_dir=state_dir,
+                steering_text=steering_text,
+                git_available=git_available,
+                attempt=attempt,
+                total_attempts=total_attempts,
+                previous_result=previous_result,
+            )
+
+        seed_result = run_codex(
+            prompt=prompt,
+            command_value=config["agent"]["command"],
+            project_root=project_root,
+            output_last_message=last_path,
+            log_path=log_path,
+            extra_env=config["agent"].get("env", {}),
+            timeout_seconds=phase_timeout_seconds(config, "seed"),
+            heartbeat_interval=heartbeat_seconds(config),
+            label=label,
+        )
+        previous_result = seed_result
+        seed_promise = parse_promise(seed_result.get("last_message", ""))
+
+        if seed_result.get("timed_out"):
+            last_failure_summary = format_timeout_summary("Task bootstrap", seed_result)
+            maybe_refresh_context(project_root, state_dir, config, f"{label}-timeout")
+            continue
+
+        maybe_refresh_context(project_root, state_dir, config, f"{label}-complete")
+        if seed_promise.startswith("BLOCKED:"):
+            return {"status": "blocked", "promise": seed_promise, "summary": seed_promise}
+        if seed_promise.startswith("DECIDE:"):
+            return {"status": "decide", "promise": seed_promise, "summary": seed_promise}
+
+        try:
+            tasks_index = load_tasks_index(state_dir)
+            tasks = tasks_index.get("tasks", [])
+            usable = isinstance(tasks, list) and not tasks_need_seed(tasks_index, tasks)
+        except Exception as exc:
+            usable = False
+            last_failure_summary = f"Seed attempt wrote an unreadable task graph: {exc}"
+        else:
+            if usable:
+                append_loop_log(
+                    state_dir,
+                    iteration=0,
+                    task=None,
+                    promise=seed_promise or "seeded",
+                    checks_summary="Not run.",
+                    review_summary="Not run.",
+                    eval_summary="Not run.",
+                    message=first_nonempty_line(seed_result.get("last_message", "")) or "Task graph bootstrap completed.",
+                )
+                return {"status": "ok", "promise": seed_promise, "summary": "Task graph bootstrap completed."}
+            last_failure_summary = first_nonempty_line(seed_result.get("last_message", "")) or "Task bootstrap did not produce a usable task graph."
+
+    if seed_local_recovery_enabled(config):
+        recovery_summary = recover_seed_task_graph(config, state_dir, last_failure_summary)
+        maybe_refresh_context(project_root, state_dir, config, "task-seed-recovered")
+        append_loop_log(
+            state_dir,
+            iteration=0,
+            task=None,
+            promise="AUTO-RECOVERY-SEED",
+            checks_summary="Not run.",
+            review_summary="Not run.",
+            eval_summary="Not run.",
+            message=recovery_summary,
+        )
+        return {"status": "ok", "promise": "AUTO-RECOVERY-SEED", "summary": recovery_summary}
+
+    return {"status": "error", "promise": "", "summary": last_failure_summary}
+
+
 def run_goal_evaluator(
     *,
     config: dict[str, Any],
@@ -1609,7 +2096,8 @@ def main() -> int:
     config = load_config(project_root, state_dir, args)
     git_available = in_git_repo(project_root)
 
-    max_iterations = int(config["loop"]["max_iterations"])
+    max_iterations = iteration_limit(config)
+    max_iterations_state = state_iteration_limit(max_iterations)
     review_enabled = bool(config["review"].get("enabled", True)) and not args.skip_review
     evaluator_enabled = bool(config.get("evaluator", {}).get("enabled", True))
     evaluator_required = bool(config.get("evaluator", {}).get("require_pass_for_completion", True))
@@ -1645,52 +2133,25 @@ def main() -> int:
             return DECIDE_EXIT
 
     if bool(config["loop"].get("auto_seed_tasks", True)) and tasks_need_seed(tasks_index, tasks):
-        seed_last_message = state_dir / "history" / "seed-worker-last.md"
-        seed_log = state_dir / "history" / "seed-worker.log"
         steering_text = active_steering(read_text(state_dir / "STEERING.md"))
-        seed_prompt = build_task_seed_prompt(
+        seed_status = run_task_seed_with_recovery(
             config=config,
             state_dir=state_dir,
+            project_root=project_root,
             steering_text=steering_text,
             git_available=git_available,
         )
-        seed_result = run_codex(
-            prompt=seed_prompt,
-            command_value=config["agent"]["command"],
-            project_root=project_root,
-            output_last_message=seed_last_message,
-            log_path=seed_log,
-            extra_env=config["agent"].get("env", {}),
-            timeout_seconds=phase_timeout_seconds(config, "seed"),
-            heartbeat_interval=heartbeat_seconds(config),
-            label="task-seed",
-        )
-        if seed_result.get("timed_out"):
-            print(format_timeout_summary("Task bootstrap", seed_result), file=sys.stderr)
-            return ERROR_EXIT
-        seed_promise = parse_promise(seed_result["last_message"])
-        maybe_refresh_context(project_root, state_dir, config, "task-seed-complete")
         tasks_index = load_tasks_index(state_dir)
         tasks = tasks_index.get("tasks", [])
-        if seed_promise.startswith("BLOCKED:"):
-            print(f"Task bootstrap blocked: {seed_promise}")
+        if seed_status["status"] == "blocked":
+            print(f"Task bootstrap blocked: {seed_status['promise']}")
             return BLOCKED_EXIT
-        if seed_promise.startswith("DECIDE:"):
-            print(f"Task bootstrap needs a decision: {seed_promise}")
+        if seed_status["status"] == "decide":
+            print(f"Task bootstrap needs a decision: {seed_status['promise']}")
             return DECIDE_EXIT
-        if tasks_need_seed(tasks_index, tasks):
-            print("Task bootstrap did not produce a usable task graph.", file=sys.stderr)
+        if seed_status["status"] != "ok":
+            print(seed_status["summary"], file=sys.stderr)
             return ERROR_EXIT
-        append_loop_log(
-            state_dir,
-            iteration=0,
-            task=None,
-            promise=seed_promise or "seeded",
-            checks_summary="Not run.",
-            review_summary="Not run.",
-            eval_summary="Not run.",
-            message=first_nonempty_line(seed_result["last_message"]) or "Task graph bootstrap completed.",
-        )
 
     if all_tasks_complete(tasks):
         evaluation = {
@@ -1715,7 +2176,7 @@ def main() -> int:
                 {
                     "updatedAt": now_iso(),
                     "iteration": 0,
-                    "maxIterations": max_iterations,
+                    "maxIterations": max_iterations_state,
                     "promise": "",
                     "task": None,
                     "checksPassed": True,
@@ -1771,7 +2232,9 @@ def main() -> int:
             maybe_refresh_context(project_root, state_dir, config, "loop-complete")
             return COMPLETE_EXIT
 
-    for iteration in range(1, max_iterations + 1):
+    iteration = 0
+    while max_iterations is None or iteration < max_iterations:
+        iteration += 1
         tasks = load_tasks(state_dir)
         specs = load_task_specs(state_dir, tasks)
         task = select_task(tasks, specs)
@@ -1794,7 +2257,7 @@ def main() -> int:
             state_payload = {
                 "updatedAt": now_iso(),
                 "iteration": iteration,
-                "maxIterations": max_iterations,
+                "maxIterations": max_iterations_state,
                 "promise": "DECIDE:dependency-order",
                 "task": None,
                 "checksPassed": False,
@@ -1853,7 +2316,7 @@ def main() -> int:
                 {
                     "updatedAt": now_iso(),
                     "iteration": iteration,
-                    "maxIterations": max_iterations,
+                    "maxIterations": max_iterations_state,
                     "promise": "ERROR:worker-timeout",
                     "task": task,
                     "checksPassed": False,
@@ -1911,7 +2374,7 @@ def main() -> int:
         interim_state_payload = {
             "updatedAt": now_iso(),
             "iteration": iteration,
-            "maxIterations": max_iterations,
+            "maxIterations": max_iterations_state,
             "promise": promise,
             "task": active_task,
             "checksPassed": checks["passed"],
@@ -1979,7 +2442,7 @@ def main() -> int:
         state_payload = {
             "updatedAt": now_iso(),
             "iteration": iteration,
-            "maxIterations": max_iterations,
+            "maxIterations": max_iterations_state,
             "promise": promise,
             "task": active_task,
             "checksPassed": checks["passed"],
@@ -2032,9 +2495,13 @@ def main() -> int:
             maybe_refresh_context(project_root, state_dir, config, "loop-complete")
             return COMPLETE_EXIT
 
-    maybe_refresh_context(project_root, state_dir, config, "loop-max-iterations")
-    print(f"Reached max iterations ({max_iterations}).")
-    return MAX_ITER_EXIT
+    if max_iterations is not None:
+        maybe_refresh_context(project_root, state_dir, config, "loop-max-iterations")
+        print(f"Reached max iterations ({max_iterations}).")
+        return MAX_ITER_EXIT
+
+    print("Loop exited unexpectedly without a bounded iteration limit.", file=sys.stderr)
+    return ERROR_EXIT
 
 
 if __name__ == "__main__":

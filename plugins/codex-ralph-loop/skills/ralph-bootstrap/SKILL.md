@@ -53,7 +53,7 @@ project rather than like a detached script.
 1. Seed `.codex-loop/` into the target project.
 2. Add `ralph.sh` and `scripts/codex_ralph.py`.
 3. Make sure `.gitignore` contains loop runtime ignores.
-4. Leave the project with a runnable `./ralph.sh --once` path.
+4. Leave the project with a runnable `./ralph.sh` path, with `--once` available only as a smoke/debug variant.
 
 ## Output bar
 

@@ -15,6 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = REPO_ROOT / "plugins" / "codex-ralph-loop" / "scripts" / "bootstrap_project.py"
 STOP_DISPATCH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "scripts" / "stop_hook_dispatch.py"
 CODEX_RALPH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "codex_ralph.py"
+RALPH_SESSION = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "ralph_session.py"
 CONTEXT_ENGINE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "context_engine.py"
 SUMMIT_INTAKE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "summit_intake.py"
 SUMMIT_RESEARCH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "summit_research.py"
@@ -1210,12 +1211,64 @@ if __name__ == "__main__":
         self.assertEqual(mod.phase_timeout_seconds(config, "seed"), 240.0)
         self.assertEqual(mod.phase_timeout_seconds(config, "evaluator"), 480.0)
 
+    def test_iteration_limit_defaults_to_until_complete(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_iteration_limit_default_test")
+        self.assertIsNone(mod.iteration_limit({"loop": {"iteration_policy": "until_complete", "max_iterations": 8}}))
+        self.assertEqual(mod.state_iteration_limit(None), "until-complete")
+
+    def test_iteration_limit_respects_bounded_policy(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_iteration_limit_bounded_test")
+        self.assertEqual(mod.iteration_limit({"loop": {"iteration_policy": "bounded", "max_iterations": 3}}), 3)
+
+    def test_run_task_seed_with_recovery_falls_back_to_local_seed(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_seed_recovery_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            state_dir = root / ".codex-loop"
+            config = json.loads((state_dir / "config.json").read_text(encoding="utf-8"))
+
+            fake_result = {
+                "timed_out": False,
+                "last_message": "seed still empty",
+                "durationSeconds": 1.0,
+                "logPath": str(state_dir / "history" / "seed-worker.log"),
+            }
+
+            with mock.patch.object(mod, "run_codex", side_effect=[fake_result, fake_result, fake_result]) as run_codex_mock:
+                status = mod.run_task_seed_with_recovery(
+                    config=config,
+                    state_dir=state_dir,
+                    project_root=root,
+                    steering_text="",
+                    git_available=False,
+                )
+
+            tasks_index = json.loads((state_dir / "tasks.json").read_text(encoding="utf-8"))
+            task_001 = json.loads((state_dir / "tasks" / "TASK-001.json").read_text(encoding="utf-8"))
+            self.assertEqual(status["status"], "ok")
+            self.assertEqual(status["promise"], "AUTO-RECOVERY-SEED")
+            self.assertEqual(tasks_index["source"], "auto-recovery-seed")
+            self.assertFalse(mod.tasks_need_seed(tasks_index, tasks_index["tasks"]))
+            self.assertEqual(task_001["status"], "in_progress")
+            self.assertEqual(run_codex_mock.call_count, 3)
+
     def test_template_config_uses_relaxed_timeout_defaults(self) -> None:
         config = json.loads((REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / ".codex-loop" / "config.json").read_text(encoding="utf-8"))
         timeouts = config["agent"]["timeout_seconds"]
+        loop = config["loop"]
         self.assertGreaterEqual(timeouts["seed"], 600)
         self.assertGreaterEqual(timeouts["review"], 600)
         self.assertGreaterEqual(timeouts["evaluator"], 600)
+        self.assertEqual(loop["max_iterations"], 0)
+        self.assertEqual(loop["iteration_policy"], "until_complete")
+        self.assertTrue(loop["seed_local_recovery"])
+        self.assertGreaterEqual(loop["seed_retry_attempts"], 1)
+
+    def test_ralph_session_defaults_to_until_complete(self) -> None:
+        mod = load_module(RALPH_SESSION, "ralph_session_default_test")
+        self.assertEqual(mod.DEFAULT_MAX_ITERATIONS, 0)
+        self.assertEqual(mod.display_max_iterations(0), "until-complete")
 
     def test_run_codex_creates_log_and_times_out_cleanly(self) -> None:
         mod = load_module(CODEX_RALPH, "codex_ralph_timeout_test")
