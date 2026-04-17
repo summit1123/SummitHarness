@@ -852,14 +852,20 @@ if __name__ == "__main__":
     def test_ralph_start_command_requires_confirmation_before_init(self) -> None:
         text = (PLUGIN_COMMANDS_DIR / "ralph-start.md").read_text(encoding="utf-8")
         self.assertIn("do **not** bootstrap it in place by default", text.lower())
+        self.assertIn("Ask a structured onboarding Q&A with enough depth to decide:", text)
         self.assertIn("Do **not** choose `build-direct`, `idea-to-service`, or any other profile by guess.", text)
         self.assertIn("Do not write approval docs as if they are already approved.", text)
+        self.assertIn("Onboarding depth matters more than speed.", text)
+        self.assertNotIn("Ask a short onboarding Q&A", text)
 
     def test_summit_start_skill_requires_waiting_when_answers_are_missing(self) -> None:
         skill_text = (REPO_ROOT / "plugins" / "codex-ralph-loop" / "skills" / "summit-start" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("If the answers are not explicit yet, stop there and wait.", skill_text)
+        self.assertIn("Use multiple passes when the request is still vague.", skill_text)
         self.assertIn("Do not force `build-direct` just because the repo contains a codebase.", skill_text)
         self.assertIn("Do not treat draft approval files as real approvals.", skill_text)
+        self.assertIn("Do not compress onboarding for speed.", skill_text)
+        self.assertNotIn("Ask only the minimum onboarding questions needed to lock:", skill_text)
 
     def test_context_engine_recent_progress_is_empty_without_iterations(self) -> None:
         mod = load_module(CONTEXT_ENGINE, "context_engine_test")
