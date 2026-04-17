@@ -26,11 +26,11 @@
     ],
     "env": {},
     "timeout_seconds": {
-      "seed": 180,
-      "worker": 900,
-      "review": 300,
-      "evaluator": 300,
-      "replan": 300
+      "seed": 900,
+      "worker": 1800,
+      "review": 600,
+      "evaluator": 900,
+      "replan": 900
     },
     "heartbeat_seconds": 15
   },

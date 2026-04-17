@@ -1175,6 +1175,48 @@ if __name__ == "__main__":
         }
         self.assertEqual(mod.active_quality_profile(config), "product-ui")
 
+    def test_phase_timeout_seconds_upgrades_legacy_defaults_for_proposal_mode(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_phase_timeout_proposal_test")
+        config = {
+            "loop": {"mode": "proposal"},
+            "agent": {
+                "timeout_seconds": {
+                    "seed": 180,
+                    "worker": 900,
+                    "review": 300,
+                    "evaluator": 300,
+                    "replan": 300,
+                }
+            },
+        }
+        self.assertEqual(mod.phase_timeout_seconds(config, "seed"), 900.0)
+        self.assertEqual(mod.phase_timeout_seconds(config, "evaluator"), 900.0)
+        self.assertEqual(mod.phase_timeout_seconds(config, "review"), 600.0)
+
+    def test_phase_timeout_seconds_keeps_explicit_override(self) -> None:
+        mod = load_module(CODEX_RALPH, "codex_ralph_phase_timeout_override_test")
+        config = {
+            "loop": {"mode": "proposal"},
+            "agent": {
+                "timeout_seconds": {
+                    "seed": 240,
+                    "worker": 1500,
+                    "review": 420,
+                    "evaluator": 480,
+                    "replan": 510,
+                }
+            },
+        }
+        self.assertEqual(mod.phase_timeout_seconds(config, "seed"), 240.0)
+        self.assertEqual(mod.phase_timeout_seconds(config, "evaluator"), 480.0)
+
+    def test_template_config_uses_relaxed_timeout_defaults(self) -> None:
+        config = json.loads((REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / ".codex-loop" / "config.json").read_text(encoding="utf-8"))
+        timeouts = config["agent"]["timeout_seconds"]
+        self.assertGreaterEqual(timeouts["seed"], 600)
+        self.assertGreaterEqual(timeouts["review"], 600)
+        self.assertGreaterEqual(timeouts["evaluator"], 600)
+
     def test_run_codex_creates_log_and_times_out_cleanly(self) -> None:
         mod = load_module(CODEX_RALPH, "codex_ralph_timeout_test")
         with tempfile.TemporaryDirectory() as tmp:

@@ -55,17 +55,48 @@ DEFAULT_TEMPLATE_TASK_TITLE_SETS = [
     },
 ]
 KNOWN_QUALITY_PROFILES = {"development", "proposal", "prd", "product-ui"}
+LEGACY_TIMEOUT_SECONDS = {
+    "seed": 180,
+    "worker": 900,
+    "review": 300,
+    "evaluator": 300,
+    "replan": 300,
+}
+MODE_TIMEOUT_SECONDS = {
+    "proposal": {
+        "seed": 900,
+        "worker": 1800,
+        "review": 600,
+        "evaluator": 900,
+        "replan": 900,
+    },
+    "prd": {
+        "seed": 900,
+        "worker": 1800,
+        "review": 600,
+        "evaluator": 900,
+        "replan": 900,
+    },
+    "product-ui": {
+        "seed": 600,
+        "worker": 1800,
+        "review": 600,
+        "evaluator": 600,
+        "replan": 600,
+    },
+    "implementation": {
+        "seed": 300,
+        "worker": 1200,
+        "review": 300,
+        "evaluator": 300,
+        "replan": 300,
+    },
+}
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "version": 1,
     "agent": {
-        "timeout_seconds": {
-            "seed": 180,
-            "worker": 900,
-            "review": 300,
-            "evaluator": 300,
-            "replan": 300,
-        },
+        "timeout_seconds": dict(LEGACY_TIMEOUT_SECONDS),
         "heartbeat_seconds": 15,
         "command": [
             "codex",
@@ -164,10 +195,31 @@ def active_quality_profile(config: dict[str, Any]) -> str:
     return "development"
 
 
+def mode_timeout_defaults(config: dict[str, Any]) -> dict[str, float]:
+    mode_name = active_mode_name(config)
+    return MODE_TIMEOUT_SECONDS.get(mode_name, MODE_TIMEOUT_SECONDS["implementation"])
+
+
+def timeout_dict_matches_legacy_defaults(raw_value: Any) -> bool:
+    if not isinstance(raw_value, dict):
+        return False
+    try:
+        for phase, legacy_value in LEGACY_TIMEOUT_SECONDS.items():
+            candidate = raw_value.get(phase, raw_value.get("default"))
+            if candidate is None or float(candidate) != float(legacy_value):
+                return False
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
 def phase_timeout_seconds(config: dict[str, Any], phase: str) -> float | None:
-    defaults = DEFAULT_CONFIG["agent"]["timeout_seconds"]
-    raw_value = config.get("agent", {}).get("timeout_seconds", defaults)
-    if isinstance(raw_value, dict):
+    defaults = mode_timeout_defaults(config)
+    raw_value = config.get("agent", {}).get("timeout_seconds")
+
+    if raw_value is None or timeout_dict_matches_legacy_defaults(raw_value):
+        candidate = defaults.get(phase)
+    elif isinstance(raw_value, dict):
         candidate = raw_value.get(phase, raw_value.get("default", defaults.get(phase)))
     else:
         candidate = raw_value

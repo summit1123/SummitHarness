@@ -152,6 +152,20 @@ python3 scripts/context_engine.py refresh --source bootstrap
 ./ralph.sh --once
 ```
 
+## 타임아웃 정책
+
+기본 timeout은 작업 성격에 따라 다르게 봐야 합니다. 특히 proposal / prd 기반의 deep research, 방향 비교, evaluator, replan은 3분 안에 끝나는 성격이 아닙니다.
+
+현재 기본 정책은 아래처럼 완화되어 있습니다.
+
+- proposal / prd: seed 15분, worker 30분, review 10분, evaluator 15분, replan 15분
+- product-ui: seed 10분, worker 30분, review 10분, evaluator 10분, replan 10분
+- implementation: seed 5분, worker 20분, review 5분, evaluator 5분, replan 5분
+
+기존 프로젝트에 예전 기본값(`seed 180`, `review/evaluator/replan 300`)이 들어 있어도, 런타임에서 legacy preset으로 감지되면 더 긴 모드별 기본값으로 자동 승격합니다.
+
+직접 조정하고 싶다면 `.codex-loop/config.json`의 `agent.timeout_seconds`를 수정하면 됩니다.
+
 ## 실행 중 보게 되는 것
 
 `./ralph.sh --once`를 실행하면 seed, worker, review, evaluator, replan phase가 각각 로그를 남깁니다.
