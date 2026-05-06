@@ -24,6 +24,7 @@ jobs:
             plugins/codex-ralph-loop/templates/project/scripts/context_engine.py \
             plugins/codex-ralph-loop/templates/project/scripts/preflight.py \
             plugins/codex-ralph-loop/templates/project/scripts/asset_registry.py \
+            plugins/codex-ralph-loop/templates/project/scripts/render_markdown_submission.py \
             plugins/codex-ralph-loop/templates/project/.codex/hooks/ralph_stop.py
       - name: Run unittest smoke suite
         run: python3 -m unittest discover -s tests -v

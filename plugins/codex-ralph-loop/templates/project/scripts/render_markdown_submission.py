@@ -143,7 +143,8 @@ def markdown_to_html(markdown_text: str) -> str:
             if i < len(lines):
                 i += 1
             class_attr = f' class="language-{html.escape(language)}"' if language else ''
-            blocks.append(f'<pre><code{class_attr}>{html.escape("\n".join(code_lines))}</code></pre>')
+            escaped_code = html.escape('\n'.join(code_lines))
+            blocks.append(f'<pre><code{class_attr}>{escaped_code}</code></pre>')
             continue
 
         heading = re.match(r'^(#{1,6})\s+(.*)$', stripped)
@@ -198,7 +199,8 @@ def markdown_to_html(markdown_text: str) -> str:
             while i < len(lines) and lines[i].strip().startswith('>'):
                 quote_lines.append(re.sub(r'^\s*>\s?', '', lines[i]))
                 i += 1
-            blocks.append(f'<blockquote>{markdown_to_html("\n".join(quote_lines))}</blockquote>')
+            quote_html = markdown_to_html('\n'.join(quote_lines))
+            blocks.append(f'<blockquote>{quote_html}</blockquote>')
             continue
 
         paragraph_lines = [stripped]
