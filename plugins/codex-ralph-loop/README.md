@@ -32,6 +32,7 @@
 - 최종 PDF gate
 - 승인된 asset registry
 - local checks + read-only review + goal evaluator
+- machine-readable stage gate artifacts and rollback routing
 - Stop hook 기반 same-session loop
 
 즉 proposal이면 source review가 먼저고, product-ui면 design contract와 reference pack이 먼저이며, implementation이면 checks와 codebase가 우선입니다.
@@ -53,6 +54,23 @@
 - `idea-to-service`: 인사이트 탐색 -> research -> PRD -> 디자인 -> 구현 -> 검증
 
 하네스는 현재 workflow stage가 seed를 허용하는 단계인지도 함께 봅니다. 그래서 onboarding이나 research 단계에서는 task graph를 억지로 만들지 않습니다.
+
+## all-rounder stage gates
+
+Public all-rounder Ralph는 `onboarding -> interview -> seed/PRD -> research -> design -> R&D -> dev -> eval`을 하나의 자동 gate 흐름으로 다룹니다.
+
+각 stage는 `.codex-loop/stage-gates/artifacts/` 아래에 JSON 산출물을 남기고, `scripts/ralph_stage_gate.py`가 다음 조건으로 pass/fail을 판정합니다.
+
+- 요구사항 매핑 100%
+- 핵심 결정마다 evidence 1개 이상
+- critical/high 이슈 0개
+- research/design/R&D 점수 0.85 이상
+- dev/eval 점수 0.90 이상
+- medium 이슈는 research/R&D 최대 2개, design/dev/eval 최대 1개
+- medium 이슈가 있으면 residual risk 기록 필수
+- 사용자 승인 누락, 테스트 실패, evidence 없는 핵심 결정, 요구사항 누락은 점수와 무관하게 hard fail
+
+실패하면 원인별 remediation plan을 만들고 같은 stage를 최대 2회 재시도합니다. 이후에는 실패 원인에 따라 `research`, `r-and-d`, `interview_or_seed_prd`, `user_judgment_gate`로 rollback합니다.
 
 ## 디자인 레이어
 
@@ -104,6 +122,9 @@ python3 scripts/install_home_local.py
 - `.codex-loop/design/DESIGN.md`
 - `.codex-loop/design/reference-packs/`
 - `.codex-loop/assets/registry.json`
+- `.codex-loop/stage-gates/spec.json`
+- `.codex-loop/stage-gates/artifacts/`
+- `.codex-loop/stage-gates/results/`
 - `.codex-loop/preflight/`
 - `docs/submissions/proposal.md`
 - `scripts/codex_ralph.py`
@@ -126,6 +147,7 @@ python3 scripts/preflight.py run
 python3 scripts/summit_start.py init --profile <proposal-only|planning-only|build-direct|idea-to-service> --goal "<goal>"
 python3 scripts/summit_intake.py init --mode <proposal|prd|implementation|product-ui>
 python3 scripts/summit_research.py init --mode <proposal|prd|implementation|product-ui>
+python3 scripts/ralph_stage_gate.py init
 ```
 
 그다음:
@@ -139,8 +161,9 @@ python3 scripts/summit_research.py init --mode <proposal|prd|implementation|prod
 7. proposal이면 Markdown source부터 씁니다.
 8. source review -> render -> pdf review 순서로 검수합니다.
 9. context를 refresh합니다.
-10. Ralph를 실행합니다.
-11. evaluator가 goal과 task drift를 계속 다시 판단합니다.
+10. stage artifact를 JSON으로 남기고 `python3 scripts/ralph_stage_gate.py evaluate --stage <stage> --artifact <path>`로 gate를 통과시킵니다.
+11. Ralph를 실행합니다.
+12. evaluator가 goal과 task drift를 계속 다시 판단합니다.
 
 ## 제안서 흐름 예시
 
@@ -200,6 +223,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `/summit-review-pdf`
 - `/summit-context-refresh`
 - `/run-codex-ralph`
+- `/ralph-stage-gate`
 - `/ralph-loop ...`
 - `/cancel-ralph`
 

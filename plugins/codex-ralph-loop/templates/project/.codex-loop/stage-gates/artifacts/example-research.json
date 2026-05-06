@@ -1,0 +1,41 @@
+{
+  "stage": "research",
+  "requirementMapping": [
+    {
+      "requirementId": "REQ-001",
+      "status": "mapped",
+      "evidenceIds": [
+        "EVID-001"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "EVID-001",
+      "type": "source",
+      "source": ".codex-loop/research/FINDINGS.md",
+      "summary": "Deep research findings map the requirement to a concrete direction."
+    }
+  ],
+  "coreDecisions": [
+    {
+      "id": "DEC-001",
+      "summary": "Proceed with the documented research direction.",
+      "evidenceIds": [
+        "EVID-001"
+      ]
+    }
+  ],
+  "score": 0.85,
+  "issues": [],
+  "residualRisks": [],
+  "approval": {
+    "required": false,
+    "granted": false
+  },
+  "checks": {
+    "tests": {
+      "passed": true
+    }
+  }
+}

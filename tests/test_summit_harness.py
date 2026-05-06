@@ -20,6 +20,7 @@ CONTEXT_ENGINE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "pro
 SUMMIT_INTAKE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "summit_intake.py"
 SUMMIT_RESEARCH = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "summit_research.py"
 SUMMIT_START = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "summit_start.py"
+RALPH_STAGE_GATE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "ralph_stage_gate.py"
 REVIEW_PDF = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "review_submission_pdf.py"
 REVIEW_SOURCE = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "review_submission_source.py"
 RENDER_MD = REPO_ROOT / "plugins" / "codex-ralph-loop" / "templates" / "project" / "scripts" / "render_markdown_submission.py"
@@ -50,12 +51,14 @@ class SummitHarnessTests(unittest.TestCase):
             self.assertTrue((root / "scripts" / "summit_intake.py").exists())
             self.assertTrue((root / "scripts" / "summit_research.py").exists())
             self.assertTrue((root / "scripts" / "summit_start.py").exists())
+            self.assertTrue((root / "scripts" / "ralph_stage_gate.py").exists())
             self.assertTrue((root / "scripts" / "review_submission_pdf.py").exists())
             self.assertTrue((root / "scripts" / "review_submission_source.py").exists())
             self.assertTrue((root / "scripts" / "render_markdown_submission.py").exists())
             self.assertTrue((root / ".codex-loop" / "design" / "DESIGN.md").exists())
             self.assertTrue((root / ".codex-loop" / "intake" / "APPROVAL.md").exists())
             self.assertTrue((root / ".codex-loop" / "research" / "APPROVAL.md").exists())
+            self.assertTrue((root / ".codex-loop" / "stage-gates" / "spec.json").exists())
             self.assertTrue((root / ".codex-loop" / "workflow" / "README.md").exists())
             self.assertTrue((root / ".codex-loop" / "design" / "reference-packs" / "security-console.md").exists())
             self.assertIn('Reference-Pack:', (root / ".codex-loop" / "design" / "DESIGN.md").read_text(encoding='utf-8'))
@@ -266,6 +269,46 @@ REPLAN: YES
             ],
         }
         self.assertFalse(mod.tasks_need_seed(custom_index, custom_index["tasks"]))
+
+    def test_stage_gate_passes_with_required_evidence_and_thresholds(self) -> None:
+        mod = load_module(RALPH_STAGE_GATE, "ralph_stage_gate_pass_test")
+        artifact = {
+            "stage": "dev",
+            "requirementMapping": [
+                {"requirementId": "REQ-1", "status": "mapped", "evidenceIds": ["E1"]},
+            ],
+            "evidence": [{"id": "E1", "type": "test", "source": "pytest", "summary": "Tests passed"}],
+            "coreDecisions": [{"id": "D1", "summary": "Ship implementation", "evidenceIds": ["E1"]}],
+            "score": 0.91,
+            "issues": [{"severity": "medium", "summary": "Minor docs follow-up"}],
+            "residualRisks": [{"issue": "Minor docs follow-up", "mitigation": "Track in docs backlog"}],
+            "approval": {"required": False, "granted": False},
+            "checks": {"tests": {"passed": True}},
+        }
+        result = mod.evaluate_artifact(mod.DEFAULT_SPEC, artifact)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["requirementMappingCoverage"], 1.0)
+
+    def test_stage_gate_hard_fails_missing_evidence_and_test_failure(self) -> None:
+        mod = load_module(RALPH_STAGE_GATE, "ralph_stage_gate_fail_test")
+        artifact = {
+            "stage": "dev",
+            "requirementMapping": [
+                {"requirementId": "REQ-1", "status": "mapped", "evidenceIds": ["E1"]},
+            ],
+            "evidence": [{"id": "E1", "type": "log", "source": "build.log"}],
+            "coreDecisions": [{"id": "D1", "summary": "Ship implementation", "evidenceIds": []}],
+            "score": 0.99,
+            "issues": [],
+            "residualRisks": [],
+            "approval": {"required": False, "granted": False},
+            "checks": {"tests": {"passed": False}},
+        }
+        result = mod.evaluate_artifact(mod.DEFAULT_SPEC, artifact, retry_count=2)
+        self.assertFalse(result["passed"])
+        self.assertIn("evidence_free_core_decision", result["hardFails"])
+        self.assertIn("test_failure", result["hardFails"])
+        self.assertEqual(result["rollbackTarget"], "research")
 
     def test_submission_pdf_review_writes_report_and_flags_bad_filename(self) -> None:
         mod = load_module(REVIEW_PDF, "review_submission_pdf_test")

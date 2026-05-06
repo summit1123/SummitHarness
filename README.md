@@ -148,6 +148,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `.codex-loop/artifacts/source-review/`: 원고 리뷰 결과
 - `.codex-loop/artifacts/pdf-review/`: PDF 리뷰 결과
 - `.codex-loop/assets/registry.json`: 승인된 asset 목록
+- `.codex-loop/stage-gates/`: all-rounder Ralph의 JSON stage artifacts, gate spec, 평가 결과
 
 ## 레퍼런스 팩
 

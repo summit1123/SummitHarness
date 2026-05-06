@@ -12,6 +12,7 @@ SummitHarness는 Codex용 오픈소스 제품 하네스다.
 - 사전 점검
 - 제출 PDF 게이트
 - 시각 자산 파이프라인
+- MCP 스타일 stage gate 산출물과 자동 pass/fail 판정
 - 구현 루프
 - evaluator 게이트
 
@@ -38,6 +39,10 @@ SummitHarness는 Codex용 오픈소스 제품 하네스다.
 │   └── events.jsonl
 ├── assets/
 │   └── registry.json
+├── stage-gates/
+│   ├── spec.json
+│   ├── artifacts/
+│   └── results/
 ├── artifacts/
 │   └── pdf-review/
 ├── preflight/
@@ -114,7 +119,29 @@ research approval이 잠기지 않으면 첫 task seed는 시작하지 않습니
 
 이 registry는 구현 단계가 "현재 승인된 시각 방향"을 잊지 않게 한다.
 
-### 4. 제출 PDF 게이트
+### 4. All-rounder stage gate
+
+`python3 scripts/ralph_stage_gate.py evaluate --stage <stage> --artifact <artifact.json>`
+
+Public all-rounder Ralph는 아래 stage를 자동 gate로 다룬다.
+
+```text
+onboarding -> interview -> seed/PRD -> research -> design -> R&D -> dev -> eval
+```
+
+각 stage는 JSON artifact를 남기고, gate는 아래 기준을 기계적으로 검사한다.
+
+- 요구사항 매핑 100%
+- 핵심 claim/decision별 evidence 1개 이상
+- critical/high 이슈 0개
+- research/design/R&D score >= 0.85
+- dev/eval score >= 0.90
+- medium 이슈 허용량 준수 및 residual risk 기록
+- 사용자 승인 누락, 테스트 실패, evidence 없는 핵심 결정, 요구사항 누락은 hard fail
+
+실패 시 결과 JSON에는 `failureCauses`, `remediationPlan`, `rollbackTarget`이 기록된다. 같은 stage는 최대 2회 재시도하고, 이후에는 원인에 따라 `research`, `r-and-d`, `interview_or_seed_prd`, `user_judgment_gate` 중 하나로 보낸다.
+
+### 5. 제출 PDF 게이트
 
 `python3 scripts/review_submission_pdf.py path/to/proposal.pdf`
 
@@ -128,7 +155,7 @@ research approval이 잠기지 않으면 첫 task seed는 시작하지 않습니
 
 이 gate는 "문서는 그럴듯한데 실제 제출물은 아직 틀린 상태"를 loop 바깥에서 먼저 잡아준다.
 
-### 5. 구현 루프
+### 6. 구현 루프
 
 `./ralph.sh` (default until-complete) / `./ralph.sh --once` (smoke/debug only)
 
@@ -142,7 +169,7 @@ research approval이 잠기지 않으면 첫 task seed는 시작하지 않습니
 
 현재 이 repo는 첫 runnable loop slice를 검증하는 중이므로, task graph와 handoff가 실제 state와 일치하는지 확인하는 것이 우선이다.
 
-### 6. Stop-hook 루프
+### 7. Stop-hook 루프
 
 `/ralph-loop ...`
 
@@ -181,6 +208,7 @@ python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 python3 scripts/preflight.py run
 python3 scripts/summit_intake.py init --mode <...>
 python3 scripts/summit_research.py init --mode <...>
+python3 scripts/ralph_stage_gate.py init
 python3 scripts/context_engine.py refresh --source bootstrap
 ```
 
@@ -196,5 +224,6 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `logs/LOG.md`
 - `reviews/`
 - `assets/registry.json`
+- `stage-gates/results/*-latest.json`
 
 즉 SummitHarness는 실행기라기보다, 중간 상태를 계속 드러내는 작업 보드에 가깝습니다.

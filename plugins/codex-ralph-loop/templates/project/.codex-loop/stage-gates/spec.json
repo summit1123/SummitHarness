@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "decisionMode": "automatic",
+  "retryLimit": 2,
+  "stages": [
+    "onboarding",
+    "interview",
+    "seed-prd",
+    "research",
+    "design",
+    "r-and-d",
+    "dev",
+    "eval"
+  ],
+  "thresholds": {
+    "research": 0.85,
+    "design": 0.85,
+    "r-and-d": 0.85,
+    "dev": 0.9,
+    "eval": 0.9
+  },
+  "issueAllowances": {
+    "default": {
+      "critical": 0,
+      "high": 0,
+      "medium": 0
+    },
+    "research": {
+      "critical": 0,
+      "high": 0,
+      "medium": 2
+    },
+    "r-and-d": {
+      "critical": 0,
+      "high": 0,
+      "medium": 2
+    },
+    "design": {
+      "critical": 0,
+      "high": 0,
+      "medium": 1
+    },
+    "dev": {
+      "critical": 0,
+      "high": 0,
+      "medium": 1
+    },
+    "eval": {
+      "critical": 0,
+      "high": 0,
+      "medium": 1
+    }
+  },
+  "hardFailConditions": [
+    "missing_required_user_approval",
+    "test_failure",
+    "evidence_free_core_decision",
+    "missing_requirement_mapping"
+  ],
+  "rollbackRoutes": {
+    "missing_requirement_mapping": "interview_or_seed_prd",
+    "missing_required_user_approval": "user_judgment_gate",
+    "evidence_free_core_decision": "research",
+    "evidence_gap": "research",
+    "design_quality_below_threshold": "design_remediation_then_user_judgment",
+    "conflicting_user_goals": "user_judgment_gate",
+    "tool_or_api_limit": "r-and-d",
+    "implementation_feasibility": "r-and-d_or_dev_planning",
+    "missing_schema_or_artifact": "same_stage_remediation",
+    "test_failure": "dev",
+    "score_below_threshold": "same_stage_remediation",
+    "issue_allowance_exceeded": "same_stage_remediation",
+    "missing_residual_risk": "same_stage_remediation"
+  }
+}
