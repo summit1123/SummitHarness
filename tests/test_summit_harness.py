@@ -424,6 +424,141 @@ REPLAN: YES
             self.assertEqual(third_summary["checkpoints"][0]["retryCount"], 2)
             self.assertTrue((root / ".codex-loop" / "stage-gates" / "remediation" / "research-latest.json").exists())
 
+    def test_stage_gate_orchestrates_full_dogfood_flow_through_eval(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            state_dir = root / ".codex-loop"
+
+            def write(path: Path, text: str) -> None:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(textwrap.dedent(text).strip() + "\n", encoding="utf-8")
+
+            def write_json(path: Path, payload: dict) -> None:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            write(
+                state_dir / "workflow" / "ONBOARDING.md",
+                """
+                # Onboarding
+                Goal: Dogfood Ralph gated implementation flow.
+                Status: approved
+                User intent: prove every public Ralph stage records mapped evidence before completion.
+                """,
+            )
+            write(state_dir / "workflow" / "PROFILE.md", "Profile: build-direct\nDefault-Mode: implementation")
+            write(state_dir / "workflow" / "STATUS.md", "Status: approved\nSeed-Ready: yes\nCurrent-Stage: verification")
+            write(
+                state_dir / "intake" / "ANSWERS.md",
+                """
+                # Intake Answers
+                Requirement R1: generate stage JSON artifacts.
+                Requirement R2: block weak evidence before worker execution.
+                Evidence bar: local script output and generated gate results.
+                """,
+            )
+            write(
+                state_dir / "intake" / "APPROVAL.md",
+                """
+                # Intake Approval
+                상태: 승인
+                승인: 예
+                Approved goal: Dogfood Ralph gated implementation flow.
+                """,
+            )
+            write_json(state_dir / "context" / "open-questions.json", {"status": "resolved", "questions": []})
+            write(
+                state_dir / "research" / "PLAN.md",
+                """
+                # Research Plan
+                1. Inspect bootstrap output.
+                2. Verify start route.
+                3. Run preflight.
+                4. Initialize workflow.
+                5. Fill stage sources.
+                6. Run orchestration.
+                7. Inspect artifacts.
+                8. Record pass result.
+                """,
+            )
+            write(
+                state_dir / "research" / "FINDINGS.md",
+                """
+                # Research Findings
+                Evidence: preflight passed in the generated project.
+                Source: ralph_stage_gate.py orchestrate writes checkpoint JSON and latest orchestration JSON.
+                Feasibility: the dogfood path limits scope before worker execution.
+                Risk: dev execution requires passing test status and eval evidence.
+                """,
+            )
+            write(state_dir / "research" / "APPROVAL.md", "상태: 승인\n승인: 예\nRecommended direction: gated dogfood verification.")
+            write(
+                state_dir / "prd" / "PRD.md",
+                """
+                # PRD
+                Requirement R1: Generate stage artifact JSON.
+                Requirement R2: Evaluate requirement mapping, evidence, issues, score, approval, and checks.
+                Requirement R3: Permit completion only when dev and eval evidence pass.
+                """,
+            )
+            write(state_dir / "prd" / "SUMMARY.md", "Dogfood Ralph gated implementation flow with deployable-stage verification.")
+            write_json(
+                state_dir / "tasks.json",
+                {
+                    "project": "Dogfood Ralph gated implementation flow",
+                    "source": "dogfood",
+                    "tasks": [{"id": "001", "title": "Verify gated flow", "status": "completed", "priority": "p0"}],
+                },
+            )
+            write_json(
+                state_dir / "tasks" / "TASK-001.json",
+                {
+                    "id": "001",
+                    "title": "Verify gated flow",
+                    "status": "completed",
+                    "dependsOn": [],
+                    "notes": ["feasibility spike prototype tradeoff risk evidence recorded."],
+                },
+            )
+            write(
+                state_dir / "design" / "DESIGN.md",
+                """
+                # Design
+                Reference-Pack: devtool-minimal
+                Visual output: .codex-loop/artifacts/screenshots/dogfood-stage-gate.txt
+                """,
+            )
+            write(state_dir / "artifacts" / "screenshots" / "dogfood-stage-gate.txt", "Dogfood stage gate visual evidence.")
+            write_json(state_dir / "assets" / "registry.json", {"assets": [{"id": "dogfood-stage-gate", "status": "approved"}]})
+            write(state_dir / "logs" / "LOG.md", "Worker log: dogfood implementation evidence recorded and checks passed.")
+            write(state_dir / "history" / "seed-worker.log", "worker: dogfood artifacts prepared\nchecks: passed")
+            write(state_dir / "evals" / "goal-eval.md", "Result: pass\nScore: 0.92\nEvidence: no critical or high issues.")
+            write(state_dir / "reviews" / "release-review.md", "Verdict: pass\nCritical: 0\nHigh: 0")
+            write_json(state_dir / "state.json", {"checksPassed": True, "evalPassed": True})
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "scripts" / "ralph_stage_gate.py"),
+                    "orchestrate",
+                    "--start",
+                    "onboarding",
+                    "--end",
+                    "eval",
+                    "--requirement",
+                    "Dogfood Ralph gated implementation flow must map all requirements to evidence.",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            summary = json.loads((state_dir / "stage-gates" / "orchestration" / "latest.json").read_text(encoding="utf-8"))
+            self.assertTrue(summary["passed"])
+            self.assertEqual(summary["completedStages"], ["onboarding", "interview", "seed-prd", "research", "design", "r-and-d", "dev", "eval"])
+            self.assertEqual(summary["nextAction"]["type"], "complete")
+
     def test_submission_pdf_review_writes_report_and_flags_bad_filename(self) -> None:
         mod = load_module(REVIEW_PDF, "review_submission_pdf_test")
         with tempfile.TemporaryDirectory() as tmp:

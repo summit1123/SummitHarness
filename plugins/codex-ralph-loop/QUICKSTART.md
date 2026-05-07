@@ -56,6 +56,12 @@ Approval must be explicit. Draft approval files do not count.
 python3 scripts/ralph_stage_gate.py orchestrate --start onboarding --end r-and-d --requirement "The approved user goal must be satisfied with mapped evidence."
 ```
 
+For a release-readiness verification after implementation and evaluation evidence exists, run through the full public path:
+
+```bash
+python3 scripts/ralph_stage_gate.py orchestrate --start onboarding --end eval --requirement "The approved user goal must be satisfied with mapped evidence."
+```
+
 If a stage fails, Ralph writes:
 
 - `.codex-loop/stage-gates/orchestration/latest.json`
@@ -72,4 +78,3 @@ The remediation task is promoted to `in_progress` unless the next action require
 ```
 
 By default, project-local Ralph checks stage gates before worker execution. If gates fail, worker execution is blocked and remediation is required first.
-
