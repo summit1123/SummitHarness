@@ -143,7 +143,7 @@ python3 scripts/install_home_local.py
 ```bash
 python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 python3 scripts/preflight.py run
-# Codex 안에서는 /ralph-start 로 시작하는 것을 권장
+# Codex 안에서는 `/ralph start` 또는 `/ralph-start`로 시작하는 것을 권장
 python3 scripts/summit_start.py init --profile <proposal-only|planning-only|build-direct|idea-to-service> --goal "<goal>"
 python3 scripts/summit_intake.py init --mode <proposal|prd|implementation|product-ui>
 python3 scripts/summit_research.py init --mode <proposal|prd|implementation|product-ui>
@@ -212,6 +212,10 @@ python3 scripts/context_engine.py refresh --source bootstrap
 ## 슬래시 커맨드
 
 - `/init-codex-ralph`
+- `/ralph`
+- `/ralph start`
+- `/ralph run`
+- `/ralph gate`
 - `/ralph-start`
 - `/summit-intake`
 - `/summit-research-plan`

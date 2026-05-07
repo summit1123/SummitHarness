@@ -879,6 +879,7 @@ if __name__ == "__main__":
         expected = {
             "init-codex-ralph.md",
             "run-codex-ralph.md",
+            "ralph.md",
             "ralph-loop.md",
             "cancel-ralph.md",
             "summit-preflight.md",
@@ -892,6 +893,12 @@ if __name__ == "__main__":
         }
         actual = {path.name for path in PLUGIN_COMMANDS_DIR.glob("*.md")}
         self.assertTrue(expected.issubset(actual))
+
+    def test_ralph_plain_text_start_skill_aliases_summit_start(self) -> None:
+        skill_text = (REPO_ROOT / "plugins" / "codex-ralph-loop" / "skills" / "ralph-start" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("ralph start", skill_text)
+        self.assertIn("summit-start/SKILL.md", skill_text)
+        self.assertIn("not a command to immediately run the loop", skill_text)
 
     def test_ralph_start_command_requires_confirmation_before_init(self) -> None:
         text = (PLUGIN_COMMANDS_DIR / "ralph-start.md").read_text(encoding="utf-8")

@@ -1,5 +1,7 @@
 # Summit Start
 
+Plain-text aliases: `ralph start`, `Ralph start`, `start Ralph`, `ralph onboarding`.
+
 Use this skill when a new repository or conversation needs the correct SummitHarness journey before Ralph should run.
 
 ## Goal
