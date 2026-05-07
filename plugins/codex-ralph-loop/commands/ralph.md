@@ -10,7 +10,7 @@ Use this as the short public entrypoint for SummitHarness.
 
 - `/ralph start`: follow `/ralph-start` exactly. Start onboarding, ask what the user wants to do in this run, choose the workflow profile only after enough answers are explicit, then initialize `scripts/summit_start.py`.
 - `/ralph run`: follow `/run-codex-ralph`. Refresh context, check intake/research/workflow gates, then run the project-local Ralph loop.
-- `/ralph gate`: follow `/ralph-stage-gate`. Evaluate a stage artifact JSON with `scripts/ralph_stage_gate.py`.
+- `/ralph gate` or `/ralph checkpoint`: follow `/ralph-stage-gate`. Generate and evaluate a stage artifact JSON with `scripts/ralph_stage_gate.py checkpoint`, or evaluate an existing artifact with `evaluate`.
 - `/ralph loop`: follow `/ralph-loop`. Use same-session Stop-hook looping.
 - `/ralph cancel`: follow `/cancel-ralph`.
 

@@ -161,7 +161,7 @@ python3 scripts/ralph_stage_gate.py init
 7. proposal이면 Markdown source부터 씁니다.
 8. source review -> render -> pdf review 순서로 검수합니다.
 9. context를 refresh합니다.
-10. stage artifact를 JSON으로 남기고 `python3 scripts/ralph_stage_gate.py evaluate --stage <stage> --artifact <path>`로 gate를 통과시킵니다.
+10. `python3 scripts/ralph_stage_gate.py checkpoint --stage <stage> --requirement "<requirement>"`로 stage artifact를 자동 생성하고 gate를 통과시킵니다. 이미 worker가 custom artifact를 만들었다면 `evaluate --artifact <path>`를 사용합니다.
 11. Ralph를 실행합니다.
 12. evaluator가 goal과 task drift를 계속 다시 판단합니다.
 

@@ -310,6 +310,36 @@ REPLAN: YES
         self.assertIn("test_failure", result["hardFails"])
         self.assertEqual(result["rollbackTarget"], "research")
 
+    def test_stage_gate_checkpoint_writes_artifact_and_result(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(root / "scripts" / "ralph_stage_gate.py"),
+                    "checkpoint",
+                    "--stage",
+                    "research",
+                    "--requirement",
+                    "Deep research must map to the approved direction.",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            artifact_path = root / ".codex-loop" / "stage-gates" / "artifacts" / "research-latest.json"
+            result_path = root / ".codex-loop" / "stage-gates" / "results" / "research-latest.json"
+            self.assertTrue(artifact_path.exists())
+            self.assertTrue(result_path.exists())
+            artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+            gate_result = json.loads(result_path.read_text(encoding="utf-8"))
+            self.assertEqual(artifact["generator"], "ralph_stage_gate.py checkpoint")
+            self.assertEqual(artifact["requirementMapping"][0]["status"], "mapped")
+            self.assertFalse(gate_result["passed"])
+            self.assertIn("remediationPlan", gate_result)
+
     def test_submission_pdf_review_writes_report_and_flags_bad_filename(self) -> None:
         mod = load_module(REVIEW_PDF, "review_submission_pdf_test")
         with tempfile.TemporaryDirectory() as tmp:

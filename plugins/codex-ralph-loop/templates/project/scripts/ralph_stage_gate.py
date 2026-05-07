@@ -11,12 +11,56 @@ from typing import Any
 
 
 STAGE_ORDER = ["onboarding", "interview", "seed-prd", "research", "design", "r-and-d", "dev", "eval"]
+STAGE_SOURCE_FILES: dict[str, list[str]] = {
+    "onboarding": [
+        ".codex-loop/workflow/ONBOARDING.md",
+        ".codex-loop/workflow/PROFILE.md",
+        ".codex-loop/workflow/STATUS.md",
+    ],
+    "interview": [
+        ".codex-loop/intake/ANSWERS.md",
+        ".codex-loop/intake/APPROVAL.md",
+        ".codex-loop/context/open-questions.json",
+    ],
+    "seed-prd": [
+        ".codex-loop/prd/PRD.md",
+        ".codex-loop/prd/SUMMARY.md",
+        ".codex-loop/tasks.json",
+    ],
+    "research": [
+        ".codex-loop/research/PLAN.md",
+        ".codex-loop/research/FINDINGS.md",
+        ".codex-loop/research/APPROVAL.md",
+    ],
+    "design": [
+        ".codex-loop/design/DESIGN.md",
+        ".codex-loop/assets/registry.json",
+    ],
+    "r-and-d": [
+        ".codex-loop/research/FINDINGS.md",
+        ".codex-loop/prd/PRD.md",
+        ".codex-loop/tasks.json",
+    ],
+    "dev": [
+        ".codex-loop/tasks.json",
+        ".codex-loop/logs/LOG.md",
+        ".codex-loop/history/seed-worker.log",
+    ],
+    "eval": [
+        ".codex-loop/evals",
+        ".codex-loop/reviews",
+        ".codex-loop/state.json",
+    ],
+}
 DEFAULT_SPEC: dict[str, Any] = {
     "version": 1,
     "decisionMode": "automatic",
     "retryLimit": 2,
     "stages": STAGE_ORDER,
     "thresholds": {
+        "onboarding": 0.85,
+        "interview": 0.85,
+        "seed-prd": 0.85,
         "research": 0.85,
         "design": 0.85,
         "r-and-d": 0.85,
@@ -63,6 +107,10 @@ def state_dir_from(root: Path) -> Path:
     return root if root.name == ".codex-loop" else root / ".codex-loop"
 
 
+def project_root_from_state(state_dir: Path) -> Path:
+    return state_dir.parent if state_dir.name == ".codex-loop" else state_dir
+
+
 def stage_gate_dir(state_dir: Path) -> Path:
     return state_dir / "stage-gates"
 
@@ -80,12 +128,186 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def read_text(path: Path) -> str:
+    if not path.exists() or not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8", errors="replace").strip()
+
+
 def ensure_stage_gate_files(state_dir: Path) -> None:
     gates_dir = stage_gate_dir(state_dir)
     (gates_dir / "artifacts").mkdir(parents=True, exist_ok=True)
     (gates_dir / "results").mkdir(parents=True, exist_ok=True)
     if not spec_path(state_dir).exists():
         write_json(spec_path(state_dir), DEFAULT_SPEC)
+
+
+def has_placeholder_text(text: str) -> bool:
+    lowered = (text or "").lower()
+    placeholders = [
+        "대기 중",
+        "작성 필요",
+        "아직",
+        "todo",
+        "tbd",
+        "placeholder",
+        "pending",
+    ]
+    return any(item in lowered for item in placeholders)
+
+
+def first_nonempty_line(text: str, fallback: str) -> str:
+    for raw in (text or "").splitlines():
+        line = raw.strip().lstrip("#").strip()
+        if line:
+            return line[:180]
+    return fallback
+
+
+def collect_source_evidence(project_root: Path, stage: str) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    evidence: list[dict[str, Any]] = []
+    issues: list[dict[str, str]] = []
+    for index, rel in enumerate(STAGE_SOURCE_FILES.get(stage, []), start=1):
+        path = project_root / rel
+        if path.is_dir():
+            children = sorted(child for child in path.iterdir() if child.is_file())
+            if children:
+                evidence.append(
+                    {
+                        "id": f"EVID-{index:03d}",
+                        "type": "directory",
+                        "source": rel,
+                        "summary": f"{len(children)} files exist for {stage} evidence.",
+                    }
+                )
+            else:
+                issues.append({"severity": "medium", "summary": f"No files found in {rel}."})
+            continue
+        text = read_text(path)
+        if not text:
+            issues.append({"severity": "medium", "summary": f"Missing or empty evidence file: {rel}."})
+            continue
+        if has_placeholder_text(text):
+            issues.append({"severity": "medium", "summary": f"Evidence file still contains placeholder text: {rel}."})
+        evidence.append(
+            {
+                "id": f"EVID-{index:03d}",
+                "type": "file",
+                "source": rel,
+                "summary": first_nonempty_line(text, rel),
+            }
+        )
+    return evidence, issues
+
+
+def infer_requirements(project_root: Path, stage: str, explicit_requirements: list[str] | None = None) -> list[str]:
+    if explicit_requirements:
+        return [item.strip() for item in explicit_requirements if item.strip()]
+    candidates = [
+        read_text(project_root / ".codex-loop" / "workflow" / "ONBOARDING.md"),
+        read_text(project_root / ".codex-loop" / "prd" / "SUMMARY.md"),
+        read_text(project_root / ".codex-loop" / "prd" / "PRD.md"),
+        read_text(project_root / ".codex-loop" / "PROMPT.md"),
+    ]
+    for candidate in candidates:
+        line = first_nonempty_line(candidate, "")
+        if line and not has_placeholder_text(line):
+            return [line]
+    return [f"{stage} stage must produce inspectable evidence before passing."]
+
+
+def stage_approval_required(stage: str) -> bool:
+    return stage in {"interview"}
+
+
+def stage_approval_granted(project_root: Path, stage: str) -> bool:
+    if stage == "interview":
+        text = read_text(project_root / ".codex-loop" / "intake" / "APPROVAL.md")
+        lowered = text.lower()
+        return "승인: 예" in text or "approved: yes" in lowered or "status: approved" in lowered or "상태: 승인" in text
+    return False
+
+
+def infer_test_status(project_root: Path, stage: str) -> bool | None:
+    if stage not in {"dev", "eval"}:
+        return None
+    state = project_root / ".codex-loop" / "state.json"
+    try:
+        payload = json.loads(state.read_text(encoding="utf-8")) if state.exists() else {}
+    except json.JSONDecodeError:
+        payload = {}
+    if payload.get("checksPassed") is False or payload.get("evalPassed") is False:
+        return False
+    if payload.get("checksPassed") is True or payload.get("evalPassed") is True:
+        return True
+    return None
+
+
+def automatic_score(spec: dict[str, Any], stage: str, evidence: list[dict[str, Any]], issues: list[dict[str, str]], approval: dict[str, Any], test_status: bool | None) -> float:
+    threshold = stage_threshold(spec, stage)
+    if not evidence:
+        return 0.0
+    if approval.get("required") and not approval.get("granted"):
+        return min(0.5, threshold - 0.2)
+    if test_status is False:
+        return min(0.5, threshold - 0.2)
+    medium_count = sum(1 for issue in issues if issue.get("severity") == "medium")
+    if medium_count:
+        return max(0.0, threshold - 0.05)
+    return max(threshold, 0.9)
+
+
+def generate_stage_artifact(spec: dict[str, Any], project_root: Path, stage: str, requirements: list[str] | None = None) -> dict[str, Any]:
+    normalized = normalized_stage(stage)
+    evidence, issues = collect_source_evidence(project_root, normalized)
+    evidence_id_list = [str(item["id"]) for item in evidence]
+    inferred_requirements = infer_requirements(project_root, normalized, requirements)
+    requirement_mapping = [
+        {
+            "requirementId": f"REQ-{index:03d}",
+            "summary": requirement,
+            "status": "mapped" if evidence_id_list else "missing",
+            "evidenceIds": evidence_id_list,
+        }
+        for index, requirement in enumerate(inferred_requirements, start=1)
+    ]
+    approval = {
+        "required": stage_approval_required(normalized),
+        "granted": stage_approval_granted(project_root, normalized),
+    }
+    test_status = infer_test_status(project_root, normalized)
+    checks: dict[str, Any] = {}
+    if test_status is not None:
+        checks["tests"] = {"passed": test_status}
+    score = automatic_score(spec, normalized, evidence, issues, approval, test_status)
+    residual_risks = [
+        {
+            "issue": issue["summary"],
+            "mitigation": "Resolve or accept explicitly before final completion.",
+        }
+        for issue in issues
+        if issue.get("severity") == "medium"
+    ]
+    artifact = {
+        "stage": normalized,
+        "generatedAt": now_iso(),
+        "generator": "ralph_stage_gate.py checkpoint",
+        "requirementMapping": requirement_mapping,
+        "evidence": evidence,
+        "coreDecisions": [
+            {
+                "id": "DEC-001",
+                "summary": f"{normalized} stage is ready for automatic gate evaluation.",
+                "evidenceIds": evidence_id_list,
+            }
+        ],
+        "score": score,
+        "issues": issues,
+        "residualRisks": residual_risks,
+        "approval": approval,
+        "checks": checks,
+    }
+    return artifact
 
 
 def load_spec(state_dir: Path) -> dict[str, Any]:
@@ -327,6 +549,23 @@ def command_evaluate(args: argparse.Namespace) -> int:
     return 0 if result["passed"] else 1
 
 
+def command_checkpoint(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    state_dir = state_dir_from(root)
+    project_root = project_root_from_state(state_dir)
+    spec = load_spec(state_dir)
+    stage = normalized_stage(args.stage)
+    artifact = generate_stage_artifact(spec, project_root, stage, requirements=args.requirement)
+    artifact_path = Path(args.artifact_output).resolve() if args.artifact_output else stage_gate_dir(state_dir) / "artifacts" / f"{stage}-latest.json"
+    write_json(artifact_path, artifact)
+    result = evaluate_artifact(spec, artifact, retry_count=args.retry_count)
+    result["artifactPath"] = str(artifact_path)
+    output_path = Path(args.output).resolve() if args.output else stage_gate_dir(state_dir) / "results" / f"{stage}-latest.json"
+    write_json(output_path, result)
+    print(json.dumps({"artifact": artifact, "result": result}, ensure_ascii=False, indent=2))
+    return 0 if result["passed"] else 1
+
+
 def command_status(args: argparse.Namespace) -> int:
     state_dir = state_dir_from(Path(args.root).resolve())
     ensure_stage_gate_files(state_dir)
@@ -358,6 +597,14 @@ def build_parser() -> argparse.ArgumentParser:
     eval_parser.add_argument("--retry-count", type=int, default=0, help="Number of failed attempts already used for this stage")
     eval_parser.add_argument("--output", default="", help="Where to write the gate result JSON")
     eval_parser.set_defaults(func=command_evaluate)
+
+    checkpoint_parser = subparsers.add_parser("checkpoint", help="Generate a stage artifact from local SummitHarness files and evaluate it")
+    checkpoint_parser.add_argument("--stage", required=True, help="Stage to checkpoint")
+    checkpoint_parser.add_argument("--requirement", action="append", default=[], help="Requirement text to map; can be repeated")
+    checkpoint_parser.add_argument("--retry-count", type=int, default=0, help="Number of failed attempts already used for this stage")
+    checkpoint_parser.add_argument("--artifact-output", default="", help="Where to write the generated artifact JSON")
+    checkpoint_parser.add_argument("--output", default="", help="Where to write the gate result JSON")
+    checkpoint_parser.set_defaults(func=command_checkpoint)
 
     status_parser = subparsers.add_parser("status", help="Summarize latest gate results")
     status_parser.set_defaults(func=command_status)
