@@ -72,7 +72,11 @@ def backup_existing(target: Path, backup_root: Path, entries: list[dict[str, str
         else:
             backup_path.unlink()
 
-    if target.is_dir() and not target.is_symlink():
+    if target.is_symlink():
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.symlink_to(os.readlink(target), target_is_directory=target.is_dir())
+        entry_type = "symlink"
+    elif target.is_dir():
         shutil.copytree(target, backup_path, ignore=IGNORE)
         entry_type = "directory"
     else:
@@ -197,6 +201,22 @@ def install_personal_skills(repo_root: Path, user_skills_dir: Path) -> list[str]
     return installed
 
 
+def install_plugin_skills(plugin_root: Path, codex_skills_dir: Path) -> list[str]:
+    skills_root = plugin_root / "skills"
+    if not skills_root.exists():
+        return []
+
+    installed = []
+    codex_skills_dir.mkdir(parents=True, exist_ok=True)
+    for skill_dir in sorted(path for path in skills_root.iterdir() if path.is_dir()):
+        if not (skill_dir / "SKILL.md").exists():
+            continue
+        target = codex_skills_dir / skill_dir.name
+        mode = link_or_copy_skill(skill_dir, target)
+        installed.append(f"{skill_dir.name} ({mode})")
+    return installed
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Install the SummitHarness plugin for local Codex use.")
     parser.add_argument(
@@ -213,6 +233,11 @@ def parse_args() -> argparse.Namespace:
         "--user-skills-dir",
         default=str(Path.home() / ".agents" / "skills"),
         help="Where optional personal skills should be linked",
+    )
+    parser.add_argument(
+        "--codex-skills-dir",
+        default=str(Path.home() / ".codex" / "skills"),
+        help="Where public plugin skills should be linked for natural-language routing",
     )
     parser.add_argument(
         "--codex-config",
@@ -239,6 +264,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip installing repo-local personal skills",
     )
+    parser.add_argument(
+        "--no-plugin-skills",
+        action="store_true",
+        help="Skip installing public plugin skills into the Codex skills directory",
+    )
     return parser.parse_args()
 
 
@@ -250,6 +280,7 @@ def main() -> int:
     install_root = Path(args.plugin_dir).expanduser().resolve()
     marketplace_path = Path(args.marketplace).expanduser().resolve()
     user_skills_dir = Path(args.user_skills_dir).expanduser().resolve()
+    codex_skills_dir = Path(args.codex_skills_dir).expanduser().resolve()
     codex_config_path = Path(args.codex_config).expanduser().resolve()
     codex_hooks_path = Path(args.codex_hooks).expanduser().resolve()
     backup_root = Path(args.backup_root).expanduser().resolve()
@@ -260,6 +291,11 @@ def main() -> int:
         backup_existing(marketplace_path, backup_root, backup_entries, "marketplace.json")
         backup_existing(codex_config_path, backup_root, backup_entries, "config.toml")
         backup_existing(codex_hooks_path, backup_root, backup_entries, "hooks.json")
+        if not args.no_plugin_skills:
+            for skill_dir in sorted((plugin_root / "skills").glob("*")):
+                target = codex_skills_dir / skill_dir.name
+                if (skill_dir / "SKILL.md").exists():
+                    backup_existing(target, backup_root / "skills", backup_entries, skill_dir.name)
 
     installed_plugin_path, installed_marketplace = install_plugin(
         plugin_root, install_root, marketplace_path, home
@@ -272,10 +308,20 @@ def main() -> int:
     if not args.no_personal_skills:
         personal = install_personal_skills(repo_root, user_skills_dir)
 
+    plugin_skills = []
+    if not args.no_plugin_skills:
+        plugin_skills = install_plugin_skills(plugin_root, codex_skills_dir)
+
     print(f"Installed plugin to {installed_plugin_path}")
     print(f"Updated marketplace at {installed_marketplace}")
     print(f"Enabled codex_hooks in {codex_config_path}")
     print(f"Installed Stop hook dispatcher in {installed_hooks}")
+    if plugin_skills:
+        print("Installed public plugin skills:")
+        for skill in plugin_skills:
+            print(f"  - {skill}")
+    elif not args.no_plugin_skills:
+        print("No public plugin skills were found under the plugin skills directory.")
     if manifest_path:
         print(f"Created install backup manifest at {manifest_path}")
         print(

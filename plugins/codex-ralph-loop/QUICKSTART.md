@@ -12,6 +12,8 @@ python3 install.py
 
 Restart Codex after installation if commands or skills do not appear.
 
+The installer registers the plugin and also links public skills such as `ralph-start`, `summit-start`, and `ralph-runtime` into `~/.codex/skills` so plain text like `ralph start` can route without requiring a slash command first.
+
 ## 2. Bootstrap A Project
 
 From the target project:

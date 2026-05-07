@@ -1084,6 +1084,7 @@ if __name__ == "__main__":
             plugin_dir = tmp_root / "codex" / "plugins" / "codex-ralph-loop"
             marketplace = tmp_root / "agents" / "plugins" / "marketplace.json"
             user_skills = tmp_root / "agents" / "skills"
+            codex_skills = tmp_root / "codex" / "skills"
             codex_config = tmp_root / "codex" / "config.toml"
             codex_hooks = tmp_root / "codex" / "hooks.json"
             backup_root = tmp_root / "backups" / "install-1"
@@ -1107,6 +1108,8 @@ if __name__ == "__main__":
                     str(marketplace),
                     "--user-skills-dir",
                     str(user_skills),
+                    "--codex-skills-dir",
+                    str(codex_skills),
                     "--codex-config",
                     str(codex_config),
                     "--codex-hooks",
@@ -1125,6 +1128,37 @@ if __name__ == "__main__":
             self.assertIn("hooks.json", originals)
             self.assertIn("codex-ralph-loop", plugin_dir.name)
             self.assertIn("codex_hooks = true", codex_config.read_text(encoding="utf-8"))
+            self.assertTrue((codex_skills / "ralph-start" / "SKILL.md").exists())
+            self.assertTrue((codex_skills / "summit-start" / "SKILL.md").exists())
+            self.assertTrue((codex_skills / "ralph-runtime" / "SKILL.md").exists())
+
+            second_backup_root = tmp_root / "backups" / "install-2"
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(INSTALLER),
+                    "--plugin-dir",
+                    str(plugin_dir),
+                    "--marketplace",
+                    str(marketplace),
+                    "--user-skills-dir",
+                    str(user_skills),
+                    "--codex-skills-dir",
+                    str(codex_skills),
+                    "--codex-config",
+                    str(codex_config),
+                    "--codex-hooks",
+                    str(codex_hooks),
+                    "--backup-root",
+                    str(second_backup_root),
+                    "--no-personal-skills",
+                ],
+                check=True,
+            )
+            second_manifest = json.loads((second_backup_root / "manifest.json").read_text(encoding="utf-8"))
+            backed_up_paths = {Path(entry["original"]).name for entry in second_manifest["entries"]}
+            self.assertIn("ralph-start", backed_up_paths)
+            self.assertTrue((codex_skills / "ralph-start" / "SKILL.md").exists())
 
     def test_plugin_bundle_includes_documented_global_commands(self) -> None:
         expected = {
