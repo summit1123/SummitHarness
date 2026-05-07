@@ -340,6 +340,40 @@ REPLAN: YES
             self.assertFalse(gate_result["passed"])
             self.assertIn("remediationPlan", gate_result)
 
+    def test_stage_gate_orchestrate_stops_and_tracks_retry_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            command = [
+                sys.executable,
+                str(root / "scripts" / "ralph_stage_gate.py"),
+                "orchestrate",
+                "--stage",
+                "research",
+                "--requirement",
+                "Deep research must map to the approved direction.",
+            ]
+
+            first = subprocess.run(command, cwd=root, capture_output=True, text=True)
+            self.assertNotEqual(first.returncode, 0)
+            summary_path = root / ".codex-loop" / "stage-gates" / "orchestration" / "latest.json"
+            first_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(first_summary["stoppedAt"], "research")
+            self.assertEqual(first_summary["nextAction"]["type"], "remediate_then_retry")
+            self.assertEqual(first_summary["checkpoints"][0]["retryCount"], 0)
+
+            second = subprocess.run(command, cwd=root, capture_output=True, text=True)
+            self.assertNotEqual(second.returncode, 0)
+            second_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(second_summary["nextAction"]["type"], "remediate_then_retry")
+            self.assertEqual(second_summary["checkpoints"][0]["retryCount"], 1)
+
+            third = subprocess.run(command, cwd=root, capture_output=True, text=True)
+            self.assertNotEqual(third.returncode, 0)
+            third_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertEqual(third_summary["nextAction"]["type"], "rollback")
+            self.assertEqual(third_summary["checkpoints"][0]["retryCount"], 2)
+
     def test_submission_pdf_review_writes_report_and_flags_bad_filename(self) -> None:
         mod = load_module(REVIEW_PDF, "review_submission_pdf_test")
         with tempfile.TemporaryDirectory() as tmp:

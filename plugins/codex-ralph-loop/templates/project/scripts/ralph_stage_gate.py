@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -463,6 +464,91 @@ def rollback_target(spec: dict[str, Any], causes: list[str], retry_count: int) -
     return str(routes.get(causes[0], "user_judgment_gate"))
 
 
+def previous_retry_count(state_dir: Path, stage: str) -> int:
+    result_path = stage_gate_dir(state_dir) / "results" / f"{stage}-latest.json"
+    if not result_path.exists():
+        return 0
+    try:
+        result = load_json(result_path)
+    except (json.JSONDecodeError, OSError):
+        return 0
+    if result.get("passed"):
+        return 0
+    remediation = result.get("remediationPlan", {})
+    if not isinstance(remediation, dict):
+        return 1
+    return int(remediation.get("retryCount", 0) or 0) + 1
+
+
+def checkpoint_stage(
+    spec: dict[str, Any],
+    state_dir: Path,
+    project_root: Path,
+    stage: str,
+    requirements: list[str] | None = None,
+    retry_count: int = 0,
+    artifact_output: Path | None = None,
+    result_output: Path | None = None,
+) -> tuple[dict[str, Any], dict[str, Any], Path, Path]:
+    normalized = normalized_stage(stage)
+    artifact = generate_stage_artifact(spec, project_root, normalized, requirements=requirements)
+    artifact_path = artifact_output or stage_gate_dir(state_dir) / "artifacts" / f"{normalized}-latest.json"
+    write_json(artifact_path, artifact)
+    result = evaluate_artifact(spec, artifact, retry_count=retry_count)
+    result["artifactPath"] = str(artifact_path)
+    output_path = result_output or stage_gate_dir(state_dir) / "results" / f"{normalized}-latest.json"
+    write_json(output_path, result)
+    return artifact, result, artifact_path, output_path
+
+
+def stage_slice(spec: dict[str, Any], start: str = "", end: str = "", only: list[str] | None = None) -> list[str]:
+    stages = [normalized_stage(stage) for stage in spec.get("stages", STAGE_ORDER)]
+    if only:
+        requested = [normalized_stage(stage) for stage in only]
+        return [stage for stage in stages if stage in requested]
+    start_stage = normalized_stage(start) if start else stages[0]
+    end_stage = normalized_stage(end) if end else stages[-1]
+    if start_stage not in stages:
+        raise ValueError(f"Unknown start stage: {start}")
+    if end_stage not in stages:
+        raise ValueError(f"Unknown end stage: {end}")
+    start_index = stages.index(start_stage)
+    end_index = stages.index(end_stage)
+    if start_index > end_index:
+        raise ValueError(f"Start stage must not come after end stage: {start_stage}>{end_stage}")
+    return stages[start_index : end_index + 1]
+
+
+def next_action_for_result(spec: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    if result.get("passed"):
+        return {"type": "continue", "reason": "stage_passed"}
+    remediation = result.get("remediationPlan", {})
+    retry_count = int(remediation.get("retryCount", 0) or 0) if isinstance(remediation, dict) else 0
+    retry_limit = int(spec.get("retryLimit", 2))
+    rollback = str(result.get("rollbackTarget", "user_judgment_gate"))
+    if retry_count < retry_limit and rollback == "same_stage_remediation":
+        return {
+            "type": "remediate_then_retry",
+            "stage": result.get("stage"),
+            "retryCount": retry_count,
+            "retryLimit": retry_limit,
+            "reason": "stage_failed_but_retry_budget_remains",
+        }
+    if "user_judgment" in rollback:
+        return {
+            "type": "user_judgment_gate",
+            "stage": result.get("stage"),
+            "rollbackTarget": rollback,
+            "reason": "automation_cannot_safely_continue",
+        }
+    return {
+        "type": "rollback",
+        "stage": result.get("stage"),
+        "rollbackTarget": rollback,
+        "reason": "retry_budget_exhausted_or_previous_stage_required",
+    }
+
+
 def evaluate_artifact(spec: dict[str, Any], artifact: dict[str, Any], retry_count: int = 0) -> dict[str, Any]:
     stage = normalized_stage(str(artifact.get("stage", "")))
     failures: list[str] = []
@@ -555,15 +641,77 @@ def command_checkpoint(args: argparse.Namespace) -> int:
     project_root = project_root_from_state(state_dir)
     spec = load_spec(state_dir)
     stage = normalized_stage(args.stage)
-    artifact = generate_stage_artifact(spec, project_root, stage, requirements=args.requirement)
-    artifact_path = Path(args.artifact_output).resolve() if args.artifact_output else stage_gate_dir(state_dir) / "artifacts" / f"{stage}-latest.json"
-    write_json(artifact_path, artifact)
-    result = evaluate_artifact(spec, artifact, retry_count=args.retry_count)
-    result["artifactPath"] = str(artifact_path)
-    output_path = Path(args.output).resolve() if args.output else stage_gate_dir(state_dir) / "results" / f"{stage}-latest.json"
-    write_json(output_path, result)
+    artifact_path = Path(args.artifact_output).resolve() if args.artifact_output else None
+    output_path = Path(args.output).resolve() if args.output else None
+    artifact, result, _, _ = checkpoint_stage(
+        spec,
+        state_dir,
+        project_root,
+        stage,
+        requirements=args.requirement,
+        retry_count=args.retry_count,
+        artifact_output=artifact_path,
+        result_output=output_path,
+    )
     print(json.dumps({"artifact": artifact, "result": result}, ensure_ascii=False, indent=2))
     return 0 if result["passed"] else 1
+
+
+def command_orchestrate(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    state_dir = state_dir_from(root)
+    project_root = project_root_from_state(state_dir)
+    spec = load_spec(state_dir)
+    try:
+        stages = stage_slice(spec, start=args.start, end=args.end, only=args.stage)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    checkpoints: list[dict[str, Any]] = []
+    stopped_at = ""
+    next_action = {"type": "complete", "reason": "all_requested_stages_passed"}
+    for stage in stages:
+        retry_count = args.retry_count if args.retry_count >= 0 else previous_retry_count(state_dir, stage)
+        _, result, artifact_path, result_path = checkpoint_stage(
+            spec,
+            state_dir,
+            project_root,
+            stage,
+            requirements=args.requirement,
+            retry_count=retry_count,
+        )
+        checkpoint = {
+            "stage": stage,
+            "passed": result.get("passed"),
+            "score": result.get("score"),
+            "threshold": result.get("threshold"),
+            "retryCount": result.get("remediationPlan", {}).get("retryCount", retry_count),
+            "rollbackTarget": result.get("rollbackTarget"),
+            "artifactPath": str(artifact_path),
+            "resultPath": str(result_path),
+            "hardFails": result.get("hardFails", []),
+            "failureCauses": result.get("failureCauses", []),
+        }
+        checkpoints.append(checkpoint)
+        if not result.get("passed"):
+            stopped_at = stage
+            next_action = next_action_for_result(spec, result)
+            break
+
+    orchestration = {
+        "generatedAt": now_iso(),
+        "requestedStages": stages,
+        "completedStages": [item["stage"] for item in checkpoints if item.get("passed")],
+        "stoppedAt": stopped_at,
+        "passed": not stopped_at and len(checkpoints) == len(stages),
+        "nextAction": next_action,
+        "checkpoints": checkpoints,
+    }
+    output_path = Path(args.output).resolve() if args.output else stage_gate_dir(state_dir) / "orchestration" / "latest.json"
+    write_json(output_path, orchestration)
+    print(json.dumps(orchestration, ensure_ascii=False, indent=2))
+    return 0 if orchestration["passed"] else 1
 
 
 def command_status(args: argparse.Namespace) -> int:
@@ -605,6 +753,20 @@ def build_parser() -> argparse.ArgumentParser:
     checkpoint_parser.add_argument("--artifact-output", default="", help="Where to write the generated artifact JSON")
     checkpoint_parser.add_argument("--output", default="", help="Where to write the gate result JSON")
     checkpoint_parser.set_defaults(func=command_checkpoint)
+
+    orchestrate_parser = subparsers.add_parser("orchestrate", help="Checkpoint stage gates in order and stop at the first failed gate")
+    orchestrate_parser.add_argument("--start", default="", help="First stage to checkpoint")
+    orchestrate_parser.add_argument("--end", default="", help="Last stage to checkpoint")
+    orchestrate_parser.add_argument("--stage", action="append", default=[], help="Specific stage to checkpoint; can be repeated")
+    orchestrate_parser.add_argument("--requirement", action="append", default=[], help="Requirement text to map; can be repeated")
+    orchestrate_parser.add_argument(
+        "--retry-count",
+        type=int,
+        default=-1,
+        help="Override retry count for every stage. Default reads the previous failed result and increments it.",
+    )
+    orchestrate_parser.add_argument("--output", default="", help="Where to write the orchestration summary JSON")
+    orchestrate_parser.set_defaults(func=command_orchestrate)
 
     status_parser = subparsers.add_parser("status", help="Summarize latest gate results")
     status_parser.set_defaults(func=command_status)

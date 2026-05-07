@@ -6,6 +6,7 @@ Evaluate a machine-readable SummitHarness stage artifact.
 
 ```bash
 python3 scripts/ralph_stage_gate.py init
+python3 scripts/ralph_stage_gate.py orchestrate --start onboarding --end eval --requirement "The run must satisfy the approved user goal."
 python3 scripts/ralph_stage_gate.py checkpoint --stage research --requirement "Research must support the approved direction."
 python3 scripts/ralph_stage_gate.py evaluate --stage research --artifact .codex-loop/stage-gates/artifacts/research.json
 python3 scripts/ralph_stage_gate.py status
@@ -26,4 +27,4 @@ Every gate checks:
 
 After two failed retries the gate returns a rollback target such as `research`, `r-and-d`, `interview_or_seed_prd`, or `user_judgment_gate`.
 
-Prefer `checkpoint` during normal use. It creates the artifact from the current `.codex-loop` stage files and immediately evaluates it. Use `evaluate` when a worker has already produced a custom artifact JSON.
+Prefer `orchestrate` for full Ralph runs. It checkpoints stages in order, stops at the first failed gate, tracks retry count from the previous result, and writes `.codex-loop/stage-gates/orchestration/latest.json`. Use `checkpoint` for one stage and `evaluate` when a worker has already produced a custom artifact JSON.

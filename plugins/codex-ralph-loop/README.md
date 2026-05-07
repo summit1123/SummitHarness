@@ -70,7 +70,7 @@ Public all-rounder Ralph는 `onboarding -> interview -> seed/PRD -> research -> 
 - medium 이슈가 있으면 residual risk 기록 필수
 - 사용자 승인 누락, 테스트 실패, evidence 없는 핵심 결정, 요구사항 누락은 점수와 무관하게 hard fail
 
-실패하면 원인별 remediation plan을 만들고 같은 stage를 최대 2회 재시도합니다. 이후에는 실패 원인에 따라 `research`, `r-and-d`, `interview_or_seed_prd`, `user_judgment_gate`로 rollback합니다.
+실패하면 원인별 remediation plan을 만들고 같은 stage를 최대 2회 재시도합니다. `orchestrate` 명령은 이전 실패 결과를 읽어 retry budget을 추적하고, 이후에는 실패 원인에 따라 `research`, `r-and-d`, `interview_or_seed_prd`, `user_judgment_gate`로 rollback합니다.
 
 ## 디자인 레이어
 
@@ -161,7 +161,7 @@ python3 scripts/ralph_stage_gate.py init
 7. proposal이면 Markdown source부터 씁니다.
 8. source review -> render -> pdf review 순서로 검수합니다.
 9. context를 refresh합니다.
-10. `python3 scripts/ralph_stage_gate.py checkpoint --stage <stage> --requirement "<requirement>"`로 stage artifact를 자동 생성하고 gate를 통과시킵니다. 이미 worker가 custom artifact를 만들었다면 `evaluate --artifact <path>`를 사용합니다.
+10. `python3 scripts/ralph_stage_gate.py orchestrate --start onboarding --end eval --requirement "<requirement>"`로 stage gate를 순서대로 checkpoint합니다. 단일 stage는 `checkpoint --stage <stage>`를 쓰고, 이미 worker가 custom artifact를 만들었다면 `evaluate --artifact <path>`를 사용합니다.
 11. Ralph를 실행합니다.
 12. evaluator가 goal과 task drift를 계속 다시 판단합니다.
 

@@ -33,9 +33,10 @@ Run:
 
 ```bash
 python3 scripts/ralph_stage_gate.py init
+python3 scripts/ralph_stage_gate.py orchestrate --start onboarding --end eval --requirement "The run must satisfy the approved user goal."
 python3 scripts/ralph_stage_gate.py checkpoint --stage research --requirement "Research must support the approved direction."
 python3 scripts/ralph_stage_gate.py evaluate --stage research --artifact .codex-loop/stage-gates/artifacts/research.json
 python3 scripts/ralph_stage_gate.py status
 ```
 
-`checkpoint` is the happy path for normal Ralph runs: it gathers local stage evidence, writes `.codex-loop/stage-gates/artifacts/<stage>-latest.json`, evaluates it, and writes `.codex-loop/stage-gates/results/<stage>-latest.json`.
+`orchestrate` is the happy path for normal Ralph runs: it runs stage checkpoints in order, stops at the first failed gate, writes `.codex-loop/stage-gates/orchestration/latest.json`, and records whether the next move is remediation, rollback, or a user judgment gate. `checkpoint` is useful when you only want to evaluate one stage.
