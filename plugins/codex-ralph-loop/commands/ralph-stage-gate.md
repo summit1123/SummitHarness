@@ -27,4 +27,4 @@ Every gate checks:
 
 After two failed retries the gate returns a rollback target such as `research`, `r-and-d`, `interview_or_seed_prd`, or `user_judgment_gate`.
 
-Prefer `orchestrate` for full Ralph runs. It checkpoints stages in order, stops at the first failed gate, tracks retry count from the previous result, and writes `.codex-loop/stage-gates/orchestration/latest.json`. Use `checkpoint` for one stage and `evaluate` when a worker has already produced a custom artifact JSON.
+Prefer `orchestrate` for full Ralph runs. It checkpoints stages in order, stops at the first failed gate, tracks retry count from the previous result, writes `.codex-loop/stage-gates/orchestration/latest.json`, and creates a remediation task under `.codex-loop/tasks/TASK-SG-*.json`. Use `checkpoint` for one stage and `evaluate` when a worker has already produced a custom artifact JSON.

@@ -47,7 +47,10 @@
     "workflow_goal": "",
     "iteration_policy": "until_complete",
     "seed_retry_attempts": 2,
-    "seed_local_recovery": true
+    "seed_local_recovery": true,
+    "require_stage_gates": true,
+    "stage_gate_start": "onboarding",
+    "stage_gate_end": "r-and-d"
   },
   "checks": {
     "commands": [],

@@ -339,6 +339,23 @@ REPLAN: YES
             self.assertEqual(artifact["requirementMapping"][0]["status"], "mapped")
             self.assertFalse(gate_result["passed"])
             self.assertIn("remediationPlan", gate_result)
+            self.assertTrue((root / ".codex-loop" / "stage-gates" / "remediation" / "research-latest.json").exists())
+            tasks_index = json.loads((root / ".codex-loop" / "tasks.json").read_text(encoding="utf-8"))
+            self.assertTrue(any(str(task.get("id", "")).startswith("SG-RESEARCH") for task in tasks_index["tasks"]))
+
+    def test_stage_gate_deep_research_flags_missing_evidence_sources(self) -> None:
+        mod = load_module(RALPH_STAGE_GATE, "ralph_stage_gate_deep_research_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            state_dir = root / ".codex-loop"
+            (state_dir / "research" / "PLAN.md").write_text("\n".join([f"Step {idx}" for idx in range(10)]), encoding="utf-8")
+            (state_dir / "research" / "FINDINGS.md").write_text("Market direction looks promising, but citations are omitted.\n", encoding="utf-8")
+            artifact = mod.generate_stage_artifact(mod.DEFAULT_SPEC, root, "research", requirements=["Research must be evidenced."])
+            result = mod.evaluate_artifact(mod.DEFAULT_SPEC, artifact)
+            self.assertFalse(result["passed"])
+            self.assertTrue(any(issue["severity"] == "high" for issue in artifact["issues"]))
+            self.assertIn("issue_allowance_exceeded", result["failureCauses"])
 
     def test_stage_gate_orchestrate_stops_and_tracks_retry_budget(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -373,6 +390,7 @@ REPLAN: YES
             third_summary = json.loads(summary_path.read_text(encoding="utf-8"))
             self.assertEqual(third_summary["nextAction"]["type"], "rollback")
             self.assertEqual(third_summary["checkpoints"][0]["retryCount"], 2)
+            self.assertTrue((root / ".codex-loop" / "stage-gates" / "remediation" / "research-latest.json").exists())
 
     def test_submission_pdf_review_writes_report_and_flags_bad_filename(self) -> None:
         mod = load_module(REVIEW_PDF, "review_submission_pdf_test")
@@ -691,6 +709,7 @@ if __name__ == "__main__":
             config["agent"]["review_command"] = [sys.executable, str(stub), "--mode", "review", "{output_last_message}"]
             config["evaluator"]["command"] = [sys.executable, str(stub), "--mode", "evaluator", "{output_last_message}"]
             config["checks"]["commands"] = []
+            config["loop"]["require_stage_gates"] = False
             config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
             result = subprocess.run(
@@ -874,6 +893,7 @@ if __name__ == "__main__":
             config["checks"]["commands"] = []
             config["review"]["enabled"] = False
             config["loop"]["auto_seed_tasks"] = False
+            config["loop"]["require_stage_gates"] = False
             config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
             result = subprocess.run(
@@ -1280,6 +1300,65 @@ if __name__ == "__main__":
             self.assertEqual(result.returncode, 3, msg=result.stdout + result.stderr)
             self.assertIn("task seed 생성 이전 단계", result.stdout)
 
+    def test_loop_blocks_worker_until_stage_gate_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            approval_path = root / ".codex-loop" / "intake" / "APPROVAL.md"
+            approval_text = approval_path.read_text(encoding="utf-8")
+            approval_text = approval_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예")
+            approval_path.write_text(approval_text, encoding="utf-8")
+            research_approval = root / ".codex-loop" / "research" / "APPROVAL.md"
+            research_text = research_approval.read_text(encoding="utf-8")
+            research_text = research_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예")
+            research_approval.write_text(research_text, encoding="utf-8")
+            subprocess.run([sys.executable, str(root / "scripts" / "summit_start.py"), "init", "--profile", "build-direct", "--goal", "Ship safely", "--force"], cwd=root, check=True)
+            subprocess.run([sys.executable, str(root / "scripts" / "summit_start.py"), "advance", "--stage", "task-graph"], cwd=root, check=True)
+            (root / ".codex-loop" / "tasks.json").write_text(
+                json.dumps(
+                    {
+                        "project": "Stage gate guarded project",
+                        "selection": "priority-order",
+                        "tasks": [
+                            {
+                                "id": "001",
+                                "title": "Do not run before gates",
+                                "status": "todo",
+                                "priority": "p0",
+                                "file": "tasks/TASK-001.json",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (root / ".codex-loop" / "tasks" / "TASK-001.json").write_text(
+                json.dumps(
+                    {
+                        "id": "001",
+                        "title": "Do not run before gates",
+                        "status": "todo",
+                        "priority": "p0",
+                        "dependsOn": [],
+                        "deliverables": ["app.txt"],
+                        "acceptance": ["Worker would create an artifact if gates were skipped."],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            result = subprocess.run([sys.executable, str(root / "scripts" / "codex_ralph.py"), "--once"], cwd=root, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 3, msg=result.stdout + result.stderr)
+            self.assertIn("Ralph stage gate blocked before worker execution", result.stdout)
+            self.assertTrue((root / ".codex-loop" / "stage-gates" / "orchestration" / "latest.json").exists())
+            self.assertTrue((root / ".codex-loop" / "stage-gates" / "remediation" / "onboarding-latest.json").exists())
+
     def test_active_quality_profile_falls_back_for_unknown_profile(self) -> None:
         mod = load_module(CODEX_RALPH, "codex_ralph_quality_profile_test")
         config = {
@@ -1378,6 +1457,8 @@ if __name__ == "__main__":
         self.assertEqual(loop["iteration_policy"], "until_complete")
         self.assertTrue(loop["seed_local_recovery"])
         self.assertGreaterEqual(loop["seed_retry_attempts"], 1)
+        self.assertTrue(loop["require_stage_gates"])
+        self.assertEqual(loop["stage_gate_end"], "r-and-d")
 
     def test_ralph_session_defaults_to_until_complete(self) -> None:
         mod = load_module(RALPH_SESSION, "ralph_session_default_test")

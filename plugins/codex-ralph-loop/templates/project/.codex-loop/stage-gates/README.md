@@ -39,4 +39,4 @@ python3 scripts/ralph_stage_gate.py evaluate --stage research --artifact .codex-
 python3 scripts/ralph_stage_gate.py status
 ```
 
-`orchestrate` is the happy path for normal Ralph runs: it runs stage checkpoints in order, stops at the first failed gate, writes `.codex-loop/stage-gates/orchestration/latest.json`, and records whether the next move is remediation, rollback, or a user judgment gate. `checkpoint` is useful when you only want to evaluate one stage.
+`orchestrate` is the happy path for normal Ralph runs: it runs stage checkpoints in order, stops at the first failed gate, writes `.codex-loop/stage-gates/orchestration/latest.json`, creates a `.codex-loop/tasks/TASK-SG-*.json` remediation task, and records whether the next move is remediation, rollback, or a user judgment gate. `checkpoint` is useful when you only want to evaluate one stage.

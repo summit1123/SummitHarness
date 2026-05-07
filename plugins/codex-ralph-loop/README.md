@@ -70,7 +70,9 @@ Public all-rounder Ralph는 `onboarding -> interview -> seed/PRD -> research -> 
 - medium 이슈가 있으면 residual risk 기록 필수
 - 사용자 승인 누락, 테스트 실패, evidence 없는 핵심 결정, 요구사항 누락은 점수와 무관하게 hard fail
 
-실패하면 원인별 remediation plan을 만들고 같은 stage를 최대 2회 재시도합니다. `orchestrate` 명령은 이전 실패 결과를 읽어 retry budget을 추적하고, 이후에는 실패 원인에 따라 `research`, `r-and-d`, `interview_or_seed_prd`, `user_judgment_gate`로 rollback합니다.
+실패하면 원인별 remediation plan과 `.codex-loop/tasks/TASK-SG-*.json` remediation task를 만들고 같은 stage를 최대 2회 재시도합니다. `orchestrate` 명령은 이전 실패 결과를 읽어 retry budget을 추적하고, 이후에는 실패 원인에 따라 `research`, `r-and-d`, `interview_or_seed_prd`, `user_judgment_gate`로 rollback합니다.
+
+기본 config는 `require_stage_gates: true`입니다. 그래서 project-local Ralph loop는 worker 실행 전에 `onboarding -> ... -> r-and-d` gate를 먼저 checkpoint하고, 통과하지 못하면 worker를 실행하지 않습니다.
 
 ## 디자인 레이어
 

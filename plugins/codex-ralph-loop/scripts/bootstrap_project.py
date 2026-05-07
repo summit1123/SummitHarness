@@ -142,6 +142,7 @@ def main() -> int:
     print(' 12. `python3 scripts/review_submission_source.py docs/submissions/proposal.md`로 원고 리뷰를 돌립니다.')
     print(' 13. 원고 게이트를 통과하면 `python3 scripts/render_markdown_submission.py`로 렌더링합니다.')
     print(' 14. `python3 scripts/ralph_stage_gate.py init`으로 all-rounder stage gate spec/results 디렉터리를 준비합니다.')
+    print('     -> 일반 실행은 `python3 scripts/ralph_stage_gate.py orchestrate --start onboarding --end r-and-d --requirement "<requirement>"`로 gate를 먼저 통과시킵니다.')
     print(' 15. `.codex-loop/config.json`에 실제 local build, lint, test, screenshot 명령을 추가합니다.')
     print(' 16. `python3 scripts/context_engine.py refresh --source bootstrap`로 첫 handoff packet을 만듭니다.')
     print(' 17. 기본 실행은 `./ralph.sh`입니다. `--once`는 smoke 또는 디버그용 1회 실행으로만 사용하고, 실제 Ralph 런은 `./ralph.sh` 또는 `/ralph-loop`로 시작합니다.')

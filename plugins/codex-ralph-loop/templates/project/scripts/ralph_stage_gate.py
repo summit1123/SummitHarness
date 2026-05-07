@@ -201,6 +201,51 @@ def collect_source_evidence(project_root: Path, stage: str) -> tuple[list[dict[s
     return evidence, issues
 
 
+def has_substantive_file(path: Path) -> bool:
+    return path.exists() and path.is_file() and bool(read_text(path)) and not has_placeholder_text(read_text(path))
+
+
+def directory_has_files(path: Path) -> bool:
+    return path.exists() and path.is_dir() and any(child.is_file() for child in path.iterdir())
+
+
+def stage_quality_issues(project_root: Path, stage: str, test_status: bool | None) -> list[dict[str, str]]:
+    state_dir = project_root / ".codex-loop"
+    issues: list[dict[str, str]] = []
+    if stage == "research":
+        findings = read_text(state_dir / "research" / "FINDINGS.md")
+        plan = read_text(state_dir / "research" / "PLAN.md")
+        evidence_markers = ("http://", "https://", "evidence", "source", "근거", "출처")
+        if not any(marker in findings.lower() for marker in evidence_markers):
+            issues.append({"severity": "high", "summary": "Research findings do not cite concrete evidence or sources."})
+        if len(plan.splitlines()) < 8:
+            issues.append({"severity": "medium", "summary": "Research plan is too thin for deep research execution."})
+    elif stage == "design":
+        design = read_text(state_dir / "design" / "DESIGN.md")
+        if "reference-pack:" not in design.lower():
+            issues.append({"severity": "high", "summary": "Design contract does not select a Reference-Pack."})
+        if not directory_has_files(state_dir / "artifacts") and not directory_has_files(state_dir / "assets"):
+            issues.append({"severity": "medium", "summary": "Design stage has no visual output, asset, or screenshot artifact."})
+    elif stage == "r-and-d":
+        findings = read_text(state_dir / "research" / "FINDINGS.md")
+        tasks = read_text(state_dir / "tasks.json")
+        feasibility_markers = ("feasibility", "spike", "prototype", "tradeoff", "risk", "검증", "실험", "리스크")
+        if not any(marker in (findings + tasks).lower() for marker in feasibility_markers):
+            issues.append({"severity": "high", "summary": "R&D stage lacks feasibility, spike, tradeoff, or risk evidence."})
+    elif stage == "dev":
+        if test_status is not True:
+            issues.append({"severity": "high", "summary": "Dev stage has no recorded passing test/build/smoke result."})
+    elif stage == "eval":
+        if test_status is not True:
+            issues.append({"severity": "high", "summary": "Eval stage has no recorded passing goal evaluation."})
+        if not directory_has_files(state_dir / "evals") and not directory_has_files(state_dir / "reviews"):
+            issues.append({"severity": "high", "summary": "Eval stage has no review or evaluation artifact files."})
+    elif stage == "seed-prd":
+        if not has_substantive_file(state_dir / "prd" / "PRD.md") or not has_substantive_file(state_dir / "prd" / "SUMMARY.md"):
+            issues.append({"severity": "high", "summary": "Seed/PRD stage lacks substantive PRD and SUMMARY files."})
+    return issues
+
+
 def infer_requirements(project_root: Path, stage: str, explicit_requirements: list[str] | None = None) -> list[str]:
     if explicit_requirements:
         return [item.strip() for item in explicit_requirements if item.strip()]
@@ -252,6 +297,8 @@ def automatic_score(spec: dict[str, Any], stage: str, evidence: list[dict[str, A
         return min(0.5, threshold - 0.2)
     if test_status is False:
         return min(0.5, threshold - 0.2)
+    if any(issue.get("severity") in {"critical", "high"} for issue in issues):
+        return max(0.0, threshold - 0.2)
     medium_count = sum(1 for issue in issues if issue.get("severity") == "medium")
     if medium_count:
         return max(0.0, threshold - 0.05)
@@ -277,6 +324,7 @@ def generate_stage_artifact(spec: dict[str, Any], project_root: Path, stage: str
         "granted": stage_approval_granted(project_root, normalized),
     }
     test_status = infer_test_status(project_root, normalized)
+    issues.extend(stage_quality_issues(project_root, normalized, test_status))
     checks: dict[str, Any] = {}
     if test_status is not None:
         checks["tests"] = {"passed": test_status}
@@ -549,6 +597,77 @@ def next_action_for_result(spec: dict[str, Any], result: dict[str, Any]) -> dict
     }
 
 
+def remediation_task_id(stage: str, retry_count: int) -> str:
+    safe_stage = normalized_stage(stage).upper().replace("-", "_")
+    return f"SG-{safe_stage}-{retry_count + 1:02d}"
+
+
+def write_remediation_task(state_dir: Path, result: dict[str, Any], next_action: dict[str, Any]) -> Path:
+    stage = normalized_stage(str(result.get("stage", "unknown")))
+    remediation = result.get("remediationPlan", {})
+    retry_count = int(remediation.get("retryCount", 0) or 0) if isinstance(remediation, dict) else 0
+    task_id = remediation_task_id(stage, retry_count)
+    task_file = f"tasks/TASK-{task_id}.json"
+    steps = remediation.get("steps", []) if isinstance(remediation, dict) else []
+    causes = result.get("failureCauses", [])
+    task_payload = {
+        "id": task_id,
+        "title": f"Remediate {stage} stage gate failure",
+        "status": "blocked" if next_action.get("type") == "user_judgment_gate" else "todo",
+        "priority": "p0",
+        "summary": f"Resolve {stage} gate failure before Ralph continues.",
+        "dependsOn": [],
+        "deliverables": [
+            f".codex-loop/stage-gates/artifacts/{stage}-latest.json",
+            f".codex-loop/stage-gates/results/{stage}-latest.json",
+        ],
+        "acceptance": [
+            f"`python3 scripts/ralph_stage_gate.py checkpoint --stage {stage}` passes.",
+            "All hard fail causes are removed or routed to explicit user judgment.",
+            "Residual medium risks are recorded with mitigation.",
+        ],
+        "failureCauses": causes,
+        "remediationSteps": steps,
+        "nextAction": next_action,
+        "source": "ralph-stage-gate",
+        "generatedAt": now_iso(),
+    }
+    task_path = state_dir / task_file
+    write_json(task_path, task_payload)
+
+    remediation_path = stage_gate_dir(state_dir) / "remediation" / f"{stage}-latest.json"
+    write_json(remediation_path, task_payload)
+
+    tasks_index_path = state_dir / "tasks.json"
+    try:
+        tasks_index = load_json(tasks_index_path) if tasks_index_path.exists() else {}
+    except json.JSONDecodeError:
+        tasks_index = {}
+    tasks = tasks_index.get("tasks", [])
+    if not isinstance(tasks, list):
+        tasks = []
+    if not any(str(task.get("id")) == task_id for task in tasks if isinstance(task, dict)):
+        tasks.append(
+            {
+                "id": task_id,
+                "title": task_payload["title"],
+                "status": task_payload["status"],
+                "priority": task_payload["priority"],
+                "file": task_file,
+            }
+        )
+    tasks_index.update(
+        {
+            "project": tasks_index.get("project", "SummitHarness Ralph stage-gate remediation"),
+            "selection": tasks_index.get("selection", "priority-order"),
+            "tasks": tasks,
+            "updatedAt": now_iso(),
+        }
+    )
+    write_json(tasks_index_path, tasks_index)
+    return remediation_path
+
+
 def evaluate_artifact(spec: dict[str, Any], artifact: dict[str, Any], retry_count: int = 0) -> dict[str, Any]:
     stage = normalized_stage(str(artifact.get("stage", "")))
     failures: list[str] = []
@@ -653,6 +772,9 @@ def command_checkpoint(args: argparse.Namespace) -> int:
         artifact_output=artifact_path,
         result_output=output_path,
     )
+    if not result.get("passed"):
+        next_action = next_action_for_result(spec, result)
+        result["remediationTaskPath"] = str(write_remediation_task(state_dir, result, next_action))
     print(json.dumps({"artifact": artifact, "result": result}, ensure_ascii=False, indent=2))
     return 0 if result["passed"] else 1
 
@@ -697,6 +819,8 @@ def command_orchestrate(args: argparse.Namespace) -> int:
         if not result.get("passed"):
             stopped_at = stage
             next_action = next_action_for_result(spec, result)
+            remediation_path = write_remediation_task(state_dir, result, next_action)
+            next_action["remediationTaskPath"] = str(remediation_path)
             break
 
     orchestration = {

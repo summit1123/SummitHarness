@@ -23,6 +23,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from context_engine import ensure_context_layout, refresh_context
+from ralph_stage_gate import checkpoint_stage, load_spec as load_stage_gate_spec, next_action_for_result, previous_retry_count, stage_gate_dir, stage_slice, write_remediation_task
 from summit_intake import load_intake_status, intake_gate_message
 from summit_research import load_research_status, research_gate_message
 from summit_start import load_workflow_status, workflow_seed_gate_message, workflow_status_block, workflow_summary, workflow_profile_text, workflow_status_text
@@ -133,6 +134,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "seed_local_recovery": True,
         "require_intake_approval": True,
         "require_research_plan": True,
+        "require_stage_gates": True,
+        "stage_gate_start": "onboarding",
+        "stage_gate_end": "r-and-d",
     },
     "checks": {
         "commands": [],
@@ -503,6 +507,108 @@ def intake_status_block(state_dir: Path) -> str:
 
 def research_plan_required(config: dict[str, Any]) -> bool:
     return bool(config.get("loop", {}).get("require_research_plan", True))
+
+
+def stage_gates_required(config: dict[str, Any]) -> bool:
+    return bool(config.get("loop", {}).get("require_stage_gates", True))
+
+
+def stage_gate_requirement_text(state_dir: Path) -> str:
+    for candidate in (
+        read_text(state_dir / "workflow" / "ONBOARDING.md"),
+        read_text(state_dir / "prd" / "SUMMARY.md"),
+        read_text(state_dir / "prd" / "PRD.md"),
+        read_text(state_dir / "PROMPT.md"),
+    ):
+        line = first_nonempty_line(candidate, limit=160)
+        if line and "아직" not in line and "작성 필요" not in line:
+            return line
+    return "The Ralph run must satisfy the approved user goal with mapped evidence before implementation continues."
+
+
+def stage_gate_start(config: dict[str, Any]) -> str:
+    return str(config.get("loop", {}).get("stage_gate_start", "onboarding") or "onboarding")
+
+
+def stage_gate_end(config: dict[str, Any]) -> str:
+    return str(config.get("loop", {}).get("stage_gate_end", "r-and-d") or "r-and-d")
+
+
+def run_stage_gate_preflight(config: dict[str, Any], state_dir: Path, project_root: Path) -> dict[str, Any]:
+    spec = load_stage_gate_spec(state_dir)
+    stages = stage_slice(spec, start=stage_gate_start(config), end=stage_gate_end(config))
+    requirement = [stage_gate_requirement_text(state_dir)]
+    checkpoints: list[dict[str, Any]] = []
+    for stage in stages:
+        retry_count = previous_retry_count(state_dir, stage)
+        _, result, artifact_path, result_path = checkpoint_stage(
+            spec,
+            state_dir,
+            project_root,
+            stage,
+            requirements=requirement,
+            retry_count=retry_count,
+        )
+        checkpoints.append(
+            {
+                "stage": stage,
+                "passed": result.get("passed"),
+                "score": result.get("score"),
+                "threshold": result.get("threshold"),
+                "retryCount": result.get("remediationPlan", {}).get("retryCount", retry_count),
+                "rollbackTarget": result.get("rollbackTarget"),
+                "artifactPath": str(artifact_path),
+                "resultPath": str(result_path),
+                "hardFails": result.get("hardFails", []),
+                "failureCauses": result.get("failureCauses", []),
+            }
+        )
+        if not result.get("passed"):
+            next_action = next_action_for_result(spec, result)
+            remediation_path = write_remediation_task(state_dir, result, next_action)
+            next_action["remediationTaskPath"] = str(remediation_path)
+            summary = {
+                "generatedAt": now_iso(),
+                "requestedStages": stages,
+                "completedStages": [item["stage"] for item in checkpoints if item.get("passed")],
+                "stoppedAt": stage,
+                "passed": False,
+                "nextAction": next_action,
+                "checkpoints": checkpoints,
+            }
+            write_json(stage_gate_dir(state_dir) / "orchestration" / "latest.json", summary)
+            return summary
+
+    summary = {
+        "generatedAt": now_iso(),
+        "requestedStages": stages,
+        "completedStages": [item["stage"] for item in checkpoints],
+        "stoppedAt": "",
+        "passed": True,
+        "nextAction": {"type": "complete", "reason": "all_requested_stages_passed"},
+        "checkpoints": checkpoints,
+    }
+    write_json(stage_gate_dir(state_dir) / "orchestration" / "latest.json", summary)
+    return summary
+
+
+def stage_gate_block_message(summary: dict[str, Any]) -> str:
+    stopped_at = summary.get("stoppedAt", "unknown")
+    next_action = summary.get("nextAction", {})
+    checkpoints = summary.get("checkpoints", [])
+    latest = checkpoints[-1] if checkpoints else {}
+    causes = ", ".join(latest.get("failureCauses", [])[:4]) or "unknown"
+    remediation_path = next_action.get("remediationTaskPath", "")
+    return "\n".join(
+        [
+            f"Ralph stage gate blocked before worker execution: {stopped_at}",
+            f"- nextAction: {next_action.get('type', 'unknown')}",
+            f"- rollbackTarget: {latest.get('rollbackTarget', 'unknown')}",
+            f"- failureCauses: {causes}",
+            f"- remediationTask: {remediation_path or 'not written'}",
+            "Remediate the generated task, then rerun Ralph.",
+        ]
+    )
 
 
 def research_summary(state_dir: Path) -> str:
@@ -2152,6 +2258,13 @@ def main() -> int:
         if seed_status["status"] != "ok":
             print(seed_status["summary"], file=sys.stderr)
             return ERROR_EXIT
+
+    if stage_gates_required(config):
+        gate_summary = run_stage_gate_preflight(config, state_dir, project_root)
+        if not bool(gate_summary.get("passed")):
+            maybe_refresh_context(project_root, state_dir, config, "stage-gate-blocked")
+            print(stage_gate_block_message(gate_summary))
+            return DECIDE_EXIT
 
     if all_tasks_complete(tasks):
         evaluation = {
