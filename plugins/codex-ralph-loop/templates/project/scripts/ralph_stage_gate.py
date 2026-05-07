@@ -610,10 +610,12 @@ def write_remediation_task(state_dir: Path, result: dict[str, Any], next_action:
     task_file = f"tasks/TASK-{task_id}.json"
     steps = remediation.get("steps", []) if isinstance(remediation, dict) else []
     causes = result.get("failureCauses", [])
+    action_type = str(next_action.get("type", ""))
+    task_status = "blocked" if action_type == "user_judgment_gate" else "in_progress"
     task_payload = {
         "id": task_id,
         "title": f"Remediate {stage} stage gate failure",
-        "status": "blocked" if next_action.get("type") == "user_judgment_gate" else "todo",
+        "status": task_status,
         "priority": "p0",
         "summary": f"Resolve {stage} gate failure before Ralph continues.",
         "dependsOn": [],
@@ -646,12 +648,19 @@ def write_remediation_task(state_dir: Path, result: dict[str, Any], next_action:
     tasks = tasks_index.get("tasks", [])
     if not isinstance(tasks, list):
         tasks = []
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        if str(task.get("id")) == task_id:
+            task["status"] = task_status
+        elif task_status == "in_progress" and str(task.get("status", "")).lower() == "in_progress":
+            task["status"] = "todo"
     if not any(str(task.get("id")) == task_id for task in tasks if isinstance(task, dict)):
         tasks.append(
             {
                 "id": task_id,
                 "title": task_payload["title"],
-                "status": task_payload["status"],
+                "status": task_status,
                 "priority": task_payload["priority"],
                 "file": task_file,
             }

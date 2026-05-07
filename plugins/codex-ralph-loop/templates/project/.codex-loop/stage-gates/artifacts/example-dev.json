@@ -1,0 +1,50 @@
+{
+  "stage": "dev",
+  "requirementMapping": [
+    {
+      "requirementId": "REQ-001",
+      "summary": "The implementation must satisfy the approved task acceptance criteria.",
+      "status": "mapped",
+      "evidenceIds": [
+        "EVID-001",
+        "EVID-002"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "EVID-001",
+      "type": "task-graph",
+      "source": ".codex-loop/tasks.json",
+      "summary": "All implementation tasks required for the current slice are complete."
+    },
+    {
+      "id": "EVID-002",
+      "type": "test",
+      "source": ".codex-loop/state.json",
+      "summary": "Local test/build/smoke checks passed."
+    }
+  ],
+  "coreDecisions": [
+    {
+      "id": "DEC-001",
+      "summary": "Ship the implementation slice to eval.",
+      "evidenceIds": [
+        "EVID-001",
+        "EVID-002"
+      ]
+    }
+  ],
+  "score": 0.92,
+  "issues": [],
+  "residualRisks": [],
+  "approval": {
+    "required": false,
+    "granted": false
+  },
+  "checks": {
+    "tests": {
+      "passed": true
+    }
+  }
+}

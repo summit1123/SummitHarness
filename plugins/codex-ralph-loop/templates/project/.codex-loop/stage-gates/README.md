@@ -2,6 +2,8 @@
 
 `ralph_stage_gate.py` evaluates the public all-rounder Ralph flow with machine-readable artifacts.
 
+See `SCHEMAS.md` for the common artifact contract and stage-specific quality checks.
+
 Every stage artifact must be JSON and must include:
 
 - `stage`: one of `onboarding`, `interview`, `seed-prd`, `research`, `design`, `r-and-d`, `dev`, `eval`

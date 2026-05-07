@@ -59,6 +59,9 @@ class SummitHarnessTests(unittest.TestCase):
             self.assertTrue((root / ".codex-loop" / "intake" / "APPROVAL.md").exists())
             self.assertTrue((root / ".codex-loop" / "research" / "APPROVAL.md").exists())
             self.assertTrue((root / ".codex-loop" / "stage-gates" / "spec.json").exists())
+            self.assertTrue((root / ".codex-loop" / "stage-gates" / "SCHEMAS.md").exists())
+            self.assertTrue((root / ".codex-loop" / "stage-gates" / "artifacts" / "example-design.json").exists())
+            self.assertTrue((root / ".codex-loop" / "stage-gates" / "artifacts" / "example-dev.json").exists())
             self.assertTrue((root / ".codex-loop" / "workflow" / "README.md").exists())
             self.assertTrue((root / ".codex-loop" / "design" / "reference-packs" / "security-console.md").exists())
             self.assertIn('Reference-Pack:', (root / ".codex-loop" / "design" / "DESIGN.md").read_text(encoding='utf-8'))
@@ -341,7 +344,36 @@ REPLAN: YES
             self.assertIn("remediationPlan", gate_result)
             self.assertTrue((root / ".codex-loop" / "stage-gates" / "remediation" / "research-latest.json").exists())
             tasks_index = json.loads((root / ".codex-loop" / "tasks.json").read_text(encoding="utf-8"))
-            self.assertTrue(any(str(task.get("id", "")).startswith("SG-RESEARCH") for task in tasks_index["tasks"]))
+            remediation_tasks = [task for task in tasks_index["tasks"] if str(task.get("id", "")).startswith("SG-RESEARCH")]
+            self.assertTrue(remediation_tasks)
+            self.assertEqual(remediation_tasks[0]["status"], "in_progress")
+
+    def test_stage_gate_remediation_promotes_task_and_pauses_existing_work(self) -> None:
+        mod = load_module(RALPH_STAGE_GATE, "ralph_stage_gate_remediation_task_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], check=True)
+            state_dir = root / ".codex-loop"
+            tasks_index = json.loads((state_dir / "tasks.json").read_text(encoding="utf-8"))
+            tasks_index["tasks"][0]["status"] = "in_progress"
+            (state_dir / "tasks.json").write_text(json.dumps(tasks_index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+            result = {
+                "stage": "design",
+                "passed": False,
+                "failureCauses": ["design_quality_below_threshold"],
+                "rollbackTarget": "same_stage_remediation",
+                "remediationPlan": {"retryCount": 0, "retryLimit": 2, "steps": ["Improve design evidence."]},
+            }
+            next_action = {"type": "remediate_then_retry", "stage": "design", "retryCount": 0, "retryLimit": 2}
+            remediation_path = mod.write_remediation_task(state_dir, result, next_action)
+
+            updated = json.loads((state_dir / "tasks.json").read_text(encoding="utf-8"))
+            statuses = {task["id"]: task["status"] for task in updated["tasks"]}
+            self.assertEqual(statuses["001"], "todo")
+            self.assertEqual(statuses["SG-DESIGN-01"], "in_progress")
+            remediation = json.loads(remediation_path.read_text(encoding="utf-8"))
+            self.assertEqual(remediation["status"], "in_progress")
 
     def test_stage_gate_deep_research_flags_missing_evidence_sources(self) -> None:
         mod = load_module(RALPH_STAGE_GATE, "ralph_stage_gate_deep_research_test")
@@ -977,6 +1009,12 @@ if __name__ == "__main__":
         }
         actual = {path.name for path in PLUGIN_COMMANDS_DIR.glob("*.md")}
         self.assertTrue(expected.issubset(actual))
+
+    def test_plugin_quickstart_documents_public_ralph_path(self) -> None:
+        quickstart = (REPO_ROOT / "plugins" / "codex-ralph-loop" / "QUICKSTART.md").read_text(encoding="utf-8")
+        self.assertIn("ralph start", quickstart)
+        self.assertIn("ralph_stage_gate.py orchestrate", quickstart)
+        self.assertIn("TASK-SG-", quickstart)
 
     def test_ralph_plain_text_start_skill_aliases_summit_start(self) -> None:
         skill_text = (REPO_ROOT / "plugins" / "codex-ralph-loop" / "skills" / "ralph-start" / "SKILL.md").read_text(encoding="utf-8")

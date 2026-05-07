@@ -1,0 +1,56 @@
+{
+  "stage": "design",
+  "requirementMapping": [
+    {
+      "requirementId": "REQ-001",
+      "summary": "The approved product UI direction must be represented by concrete visual output.",
+      "status": "mapped",
+      "evidenceIds": [
+        "EVID-001",
+        "EVID-002"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "EVID-001",
+      "type": "contract",
+      "source": ".codex-loop/design/DESIGN.md",
+      "summary": "Design contract selects a Reference-Pack and states project-specific layout rules."
+    },
+    {
+      "id": "EVID-002",
+      "type": "visual-output",
+      "source": ".codex-loop/artifacts/screenshots/home-desktop.png",
+      "summary": "Desktop screenshot shows the implemented primary workflow without overlap or blank state."
+    }
+  ],
+  "coreDecisions": [
+    {
+      "id": "DEC-001",
+      "summary": "Proceed with the selected reference pack and implemented screen direction.",
+      "evidenceIds": [
+        "EVID-001",
+        "EVID-002"
+      ]
+    }
+  ],
+  "score": 0.88,
+  "issues": [
+    {
+      "severity": "medium",
+      "summary": "Mobile screenshot still needs one final spacing pass."
+    }
+  ],
+  "residualRisks": [
+    {
+      "issue": "Mobile screenshot still needs one final spacing pass.",
+      "mitigation": "Run the mobile viewport pass before final eval."
+    }
+  ],
+  "approval": {
+    "required": false,
+    "granted": false
+  },
+  "checks": {}
+}

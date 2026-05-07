@@ -98,6 +98,8 @@ cd SummitHarness
 python3 install.py
 ```
 
+처음 쓰는 흐름은 [QUICKSTART.md](QUICKSTART.md)를 기준으로 보면 됩니다.
+
 또는 플러그인 디렉터리에서 직접:
 
 ```bash
@@ -127,6 +129,7 @@ python3 scripts/install_home_local.py
 - `.codex-loop/stage-gates/spec.json`
 - `.codex-loop/stage-gates/artifacts/`
 - `.codex-loop/stage-gates/results/`
+- `.codex-loop/stage-gates/remediation/`
 - `.codex-loop/preflight/`
 - `docs/submissions/proposal.md`
 - `scripts/codex_ralph.py`
