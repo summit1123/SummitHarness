@@ -7,13 +7,13 @@
 
 ## 사용자는 무엇만 알면 되나
 
-대부분의 사용자는 **`ralph start` 하나로 시작하면 됩니다.**
+대부분의 사용자는 **`ralph start` 하나로 시작하면 됩니다.** 여기서 말하는 시작은 곧바로 루프를 돌린다는 뜻이 아니라, 먼저 온보딩 인터뷰를 열어 목표와 멈출 지점을 잠그는 뜻입니다.
 
 `/` 메뉴나 skill picker에 `Ralph Prd`, `Summit Intake`, `Ralph Bootstrap`, `Summit PDF Gate` 같은 항목이 많이 보일 수 있습니다. 이 항목들은 사용자가 매번 직접 고르기 위한 메뉴라기보다, `ralph start` 이후 Codex가 단계별로 참고하는 **내부 역할 모듈**입니다.
 
 권장 public surface는 아래처럼 단순하게 봅니다.
 
-- `ralph start`: 온보딩, 목표 확인, 작업 성격 분류, 승인 기준 잠금
+- `ralph start`: 온보딩 인터뷰, 목표 확인, 작업 성격 분류, 승인 기준 잠금
 - `ralph run` 또는 `./ralph.sh`: 프로젝트 로컬 loop 실행
 - `ralph gate`: stage gate와 산출물 정합성 점검
 
@@ -100,23 +100,33 @@ python3 install.py
 ```bash
 python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 python3 scripts/preflight.py run
-python3 scripts/summit_start.py init --profile <proposal-only|planning-only|build-direct|idea-to-service> --goal "<goal>"
-python3 scripts/summit_intake.py init --mode <proposal|prd|implementation|product-ui>
-python3 scripts/summit_research.py init --mode <proposal|prd|implementation|product-ui>
 ```
+
+그다음 Codex 대화창에서는 바로 아래처럼 시작합니다.
+
+```text
+ralph start
+```
+
+`ralph start`는 먼저 질문합니다. 이번 런에서 무엇을 하고 싶은지, 어디까지 진행하면 멈춰도 되는지, 최종 산출물이 무엇인지, 어떤 증거가 있어야 완료인지가 잠기기 전에는 profile과 task graph를 추측하지 않습니다.
+
+`python3 scripts/summit_start.py init --profile ... --goal ...`는 온보딩 답변과 승인 기준이 명확해진 뒤 문서를 생성하는 단계입니다. 처음부터 profile과 goal을 임의로 넣어 실행하는 명령으로 쓰지 않습니다.
 
 ## 권장 진행 순서
 
-1. `.codex-loop/workflow/ONBOARDING.md`에 이번 런의 목표, 범위, 승인권자, evidence bar를 적습니다.
-2. 아이디어가 열려 있으면 `.codex-loop/workflow/IDEAS.md`에서 옵션을 비교하고 하나를 고릅니다.
-3. `.codex-loop/intake/ANSWERS.md`와 `.codex-loop/intake/APPROVAL.md`로 요청자 Q&A와 승인 기준을 잠급니다.
-4. `.codex-loop/research/PLAN.md`, `FINDINGS.md`, `APPROVAL.md`로 research 방향과 단계별 실행안을 잠급니다.
-5. `.codex-loop/prd/PRD.md`, `SUMMARY.md`, `.codex-loop/design/DESIGN.md`를 승인된 방향에 맞게 정리합니다.
-6. 필요하면 `.codex-loop/design/reference-packs/`에서 pack을 고르거나 프로젝트 전용으로 복제합니다.
-7. proposal 작업이면 `docs/submissions/proposal.md`를 먼저 씁니다.
-8. source review, render, pdf review 순서로 검수합니다.
-9. `python3 scripts/context_engine.py refresh --source bootstrap`로 handoff를 갱신합니다.
-10. 기본 실행은 `./ralph.sh`입니다. `--once`는 smoke 또는 디버그용 1회 실행일 뿐이고, 실제 Ralph 런은 완료될 때까지 계속 도는 기본 실행을 권장합니다.
+1. `ralph start`로 온보딩 인터뷰를 시작합니다.
+2. 사용자가 이번 런에서 무엇을 원하는지와 어디서 멈추고 싶은지 먼저 확인합니다.
+3. workflow profile, 목표 문장, 범위, 승인권자, evidence bar가 명확해질 때까지 질문을 계속합니다.
+4. 확정된 답변을 `.codex-loop/workflow/ONBOARDING.md`에 기록합니다.
+5. 아이디어가 열려 있으면 `.codex-loop/workflow/IDEAS.md`에서 옵션을 비교하고 하나를 고릅니다.
+6. `.codex-loop/intake/ANSWERS.md`와 `.codex-loop/intake/APPROVAL.md`로 요청자 Q&A와 승인 기준을 잠급니다.
+7. `.codex-loop/research/PLAN.md`, `FINDINGS.md`, `APPROVAL.md`로 research 방향과 단계별 실행안을 잠급니다.
+8. `.codex-loop/prd/PRD.md`, `SUMMARY.md`, `.codex-loop/design/DESIGN.md`를 승인된 방향에 맞게 정리합니다.
+9. 필요하면 `.codex-loop/design/reference-packs/`에서 pack을 고르거나 프로젝트 전용으로 복제합니다.
+10. proposal 작업이면 `docs/submissions/proposal.md`를 먼저 씁니다.
+11. source review, render, pdf review 순서로 검수합니다.
+12. `python3 scripts/context_engine.py refresh --source bootstrap`로 handoff를 갱신합니다.
+13. 기본 실행은 `./ralph.sh`입니다. `--once`는 smoke 또는 디버그용 1회 실행일 뿐이고, 실제 Ralph 런은 완료될 때까지 계속 도는 기본 실행을 권장합니다.
 
 ## 제안서 작업 예시
 
@@ -170,7 +180,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 | Skill | 역할 |
 | --- | --- |
-| `ralph-start` | 첫 진입점입니다. 사용자의 목표, 산출물, 범위, 작업 유형을 확인하고 온보딩을 시작합니다. |
+| `ralph-start` | 첫 진입점입니다. 바로 실행하지 않고 사용자의 목표, 산출물, 범위, 승인 기준을 온보딩 인터뷰로 잠급니다. |
 | `summit-intake` | 작업 전 Q&A와 승인 기준을 정리합니다. 기획서, 개발, 디자인처럼 성격이 다른 작업의 질문을 나눕니다. |
 | `summit-research-plan` | deep research 계획, 선택지 비교, 권장 방향 승인을 다룹니다. |
 | `ralph-brainstorm` | 흐릿한 아이디어를 구체적인 문제, 대상, 해결 방향으로 좁힙니다. |

@@ -8,7 +8,7 @@
 
 일반 사용자는 여러 skill을 직접 고를 필요가 없습니다.
 
-권장 진입점은 **`ralph start`** 입니다. 여기서 작업 목표, 산출물 성격, 승인 기준, 필요한 리서치나 디자인 단계를 먼저 정리하고, 이후 필요한 내부 skill을 순서대로 사용합니다.
+권장 진입점은 **`ralph start`** 입니다. 여기서 바로 루프를 돌리는 것이 아니라, 작업 목표, 멈출 지점, 산출물 성격, 승인 기준, 필요한 리서치나 디자인 단계를 먼저 질문으로 잠급니다. 이후 필요한 내부 skill을 순서대로 사용합니다.
 
 `/` 메뉴나 skill picker에 Ralph 관련 항목이 많이 보이는 이유는 이 플러그인이 slash command와 skill을 함께 번들하기 때문입니다.
 
@@ -162,22 +162,27 @@ python3 scripts/install_home_local.py
 ```bash
 python3 ~/.codex/plugins/codex-ralph-loop/scripts/bootstrap_project.py .
 python3 scripts/preflight.py run
-# Codex 안에서는 `/ralph start` 또는 `/ralph-start`로 시작하는 것을 권장
-python3 scripts/summit_start.py init --profile <proposal-only|planning-only|build-direct|idea-to-service> --goal "<goal>"
-python3 scripts/summit_intake.py init --mode <proposal|prd|implementation|product-ui>
-python3 scripts/summit_research.py init --mode <proposal|prd|implementation|product-ui>
 python3 scripts/ralph_stage_gate.py init
 ```
+
+그다음 Codex 안에서는 아래처럼 시작하는 것을 권장합니다.
+
+```text
+ralph start
+```
+
+`python3 scripts/summit_start.py init --profile ... --goal ...`는 온보딩 답변과 승인 기준이 명확해진 뒤에 사용하는 내부 초기화 단계입니다. profile과 goal을 추측해서 먼저 실행하면 안 됩니다.
 
 그다음:
 
 1. 먼저 사용자에게 이번 런에서 무엇을 하고 싶은지, 어디까지 진행하면 되는지 확인합니다.
-2. workflow onboarding과 ideas를 정리합니다.
-3. intake 질문지와 승인 문서를 잠급니다.
-4. research plan, findings, recommended direction을 잠급니다.
-5. PRD, SUMMARY, DESIGN.md를 현재 방향에 맞게 고칩니다.
-6. reference pack을 선택합니다.
-7. proposal이면 Markdown source부터 씁니다.
+2. workflow profile, 목표 문장, 범위, 승인 경로, evidence bar가 명확해질 때까지 온보딩을 계속합니다.
+3. workflow onboarding과 ideas를 정리합니다.
+4. intake 질문지와 승인 문서를 잠급니다.
+5. research plan, findings, recommended direction을 잠급니다.
+6. PRD, SUMMARY, DESIGN.md를 현재 방향에 맞게 고칩니다.
+7. reference pack을 선택합니다.
+8. proposal이면 Markdown source부터 씁니다.
 8. source review -> render -> pdf review 순서로 검수합니다.
 9. context를 refresh합니다.
 10. `python3 scripts/ralph_stage_gate.py orchestrate --start onboarding --end eval --requirement "<requirement>"`로 stage gate를 순서대로 checkpoint합니다. 단일 stage는 `checkpoint --stage <stage>`를 쓰고, 이미 worker가 custom artifact를 만들었다면 `evaluate --artifact <path>`를 사용합니다.
@@ -256,7 +261,7 @@ python3 scripts/context_engine.py refresh --source bootstrap
 
 | Skill | 언제 쓰이나 |
 | --- | --- |
-| `ralph-start` | 사용자가 `ralph start`라고 말하거나 Ralph 온보딩을 시작할 때 사용합니다. |
+| `ralph-start` | 사용자가 `ralph start`라고 말하면 바로 실행하지 않고 목표, 범위, 산출물, 승인 기준을 묻는 온보딩을 시작합니다. |
 | `summit-intake` | 목표, 산출물, 금지사항, 승인 기준을 Q&A로 잠글 때 사용합니다. |
 | `summit-research-plan` | deep research, 선택지 비교, 권장 방향 승인이 필요할 때 사용합니다. |
 | `ralph-brainstorm` | 아이디어가 아직 흐릿해서 문제와 해결 방향을 좁혀야 할 때 사용합니다. |

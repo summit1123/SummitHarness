@@ -37,7 +37,7 @@ or:
 /ralph start
 ```
 
-The start step is not a build loop. It chooses the workflow profile and captures what the user wants to do in this run.
+The start step is not a build loop. It is the onboarding interview. It must ask what the user wants to do, where this run should stop, what the final deliverable is, and what evidence makes completion honest before any profile or task graph is locked.
 
 ## 4. Lock Inputs
 
@@ -51,6 +51,8 @@ Fill and approve:
 - `.codex-loop/research/APPROVAL.md`
 
 Approval must be explicit. Draft approval files do not count.
+
+Do not run `python3 scripts/summit_start.py init --profile ... --goal ...` as a shortcut before onboarding is clear. That command is only the document initialization step after the workflow profile, goal, scope, approval path, and evidence bar are explicit.
 
 ## 5. Run Stage Gates
 
