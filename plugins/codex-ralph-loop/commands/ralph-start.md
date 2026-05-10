@@ -1,5 +1,5 @@
 ---
-description: Start SummitHarness onboarding, choose the right workflow profile, and prepare the project for the correct Ralph path.
+description: SummitHarness 온보딩을 시작하고 목표에 맞는 작업 흐름 유형과 Ralph 진행 경로를 정합니다.
 ---
 
 # /ralph-start

@@ -1,5 +1,5 @@
 ---
-description: Cancel the active Stop-hook Ralph loop in the current project.
+description: 현재 프로젝트에서 실행 중인 중지 훅 기반 Ralph 루프를 취소합니다.
 ---
 
 # /cancel-ralph

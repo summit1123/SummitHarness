@@ -1,6 +1,6 @@
 ---
 name: summit-visual-pipeline
-description: Use when the harness should establish an actual visual direction, approved assets, or Figma-backed implementation inputs before polishing UI code.
+description: 화면을 다듬기 전에 시각 방향, 승인된 에셋, Figma 기반 구현 입력을 정리합니다.
 ---
 
 # Summit Visual Pipeline

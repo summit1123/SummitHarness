@@ -1,3 +1,7 @@
+---
+description: 최종 PDF 첨부본의 레이아웃, 파일명, 용량, 제출 패키징 문제를 검토합니다.
+---
+
 # /summit-review-pdf
 
 Markdown 원고 점검을 통과한 뒤 최종 PDF 첨부본을 점검합니다.

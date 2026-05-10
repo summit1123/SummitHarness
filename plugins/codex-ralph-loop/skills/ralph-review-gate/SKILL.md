@@ -1,6 +1,6 @@
 ---
 name: ralph-review-gate
-description: Add or refine a code and regression review gate for the Codex Ralph loop, focused on correctness, risks, and missing coverage.
+description: 정확성, 위험, 누락된 검증을 중심으로 Ralph 루프의 코드 리뷰와 회귀 검수 단계를 강화합니다.
 metadata:
   priority: 4
   pathPatterns:

@@ -1,6 +1,6 @@
 ---
 name: summit-research-plan
-description: Use when a SummitHarness project needs a staged deep-research pass, option comparison, and an approved execution direction before task seeding.
+description: 작업 생성 전에 단계형 심층 리서치, 선택지 비교, 승인된 실행 방향을 정리합니다.
 ---
 
 # Summit Research Plan

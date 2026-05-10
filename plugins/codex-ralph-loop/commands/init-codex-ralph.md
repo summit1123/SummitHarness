@@ -1,3 +1,7 @@
+---
+description: 현재 프로젝트에 SummitHarness 실행 파일과 초기 작업 흐름 문서를 설치합니다.
+---
+
 # /init-codex-ralph
 
 Initialize the current project with SummitHarness runtime files.

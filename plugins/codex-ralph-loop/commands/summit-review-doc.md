@@ -1,3 +1,7 @@
+---
+description: PDF 렌더링 전에 Markdown 원고의 내용, 구조, 제출 적합성을 먼저 검토합니다.
+---
+
 # /summit-review-doc
 
 렌더링이나 최종 제출 전에 Markdown 원고를 먼저 점검합니다.

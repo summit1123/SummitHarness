@@ -1,5 +1,5 @@
 ---
-description: task seed 전에 단계형 deep research 계획을 만들고 승인 상태를 잠급니다.
+description: 작업 생성 전에 단계형 심층 리서치 계획을 만들고 승인 상태를 잠급니다.
 ---
 
 # /summit-research-plan

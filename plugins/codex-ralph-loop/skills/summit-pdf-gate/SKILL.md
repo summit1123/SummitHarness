@@ -1,6 +1,6 @@
 ---
 name: summit-pdf-gate
-description: Review a rendered PDF only as the final attachment packaging step, then feed the findings back into the context packet and next Ralph pass.
+description: 렌더링된 PDF를 최종 첨부 패키지로 검토하고 문제를 컨텍스트와 다음 Ralph 실행에 반영합니다.
 metadata:
   priority: 4
   pathPatterns:

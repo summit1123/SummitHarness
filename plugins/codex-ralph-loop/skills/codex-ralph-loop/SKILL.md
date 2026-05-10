@@ -1,6 +1,6 @@
 ---
 name: codex-ralph-loop
-description: Run a project-local SummitHarness loop that works from PRD, tasks, compressed context, local checks, review gates, and optional Stop-hook self-loops.
+description: PRD, 작업, 압축 컨텍스트, 로컬 점검, 리뷰 검수를 기준으로 프로젝트 로컬 Ralph 루프를 실행합니다.
 ---
 
 # SummitHarness Loop

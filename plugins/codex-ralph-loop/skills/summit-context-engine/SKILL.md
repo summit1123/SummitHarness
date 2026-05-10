@@ -1,6 +1,6 @@
 ---
 name: summit-context-engine
-description: Use when a long-running Codex task needs compressed handoff packets, durable facts, open questions, or context refreshes instead of replaying the entire transcript.
+description: 긴 작업에서 전체 대화 대신 핵심 사실, 열린 질문, 다음 행동을 압축 handoff로 유지합니다.
 ---
 
 # Summit Context Engine

@@ -1,6 +1,6 @@
 ---
 name: summit-preflight
-description: Use when the user wants to verify that the environment, Codex hooks, toolchain, MCP setup hints, and media tooling are ready before running the harness.
+description: 하네스 실행 전에 환경, Codex hook, 도구체인, MCP 힌트, 미디어 도구 준비 상태를 점검합니다.
 ---
 
 # Summit Preflight

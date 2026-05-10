@@ -1,6 +1,6 @@
 ---
 name: ralph-start
-description: Use when the user says "ralph start", "Ralph start", "start Ralph", "ralph onboarding", or asks to begin SummitHarness/Ralph onboarding in plain text instead of using a slash command.
+description: 사용자가 ralph start 또는 Ralph 온보딩 시작을 요청할 때 목표 확인과 시작 흐름을 여는 진입점입니다.
 ---
 
 # Ralph Start

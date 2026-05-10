@@ -1,6 +1,6 @@
 ---
 name: ralph-prd
-description: Turn rough requirements or planning documents into a buildable PRD, project summary, and concrete task graph for the Codex Ralph loop.
+description: 거친 요구사항이나 기획 문서를 Ralph 루프가 실행할 수 있는 PRD, 요약, 작업 그래프로 바꿉니다.
 metadata:
   priority: 5
   pathPatterns:

@@ -1,6 +1,6 @@
 ---
 name: ralph-bootstrap
-description: Initialize a project-local Codex Ralph loop runtime with PRD, task files, steering notes, and the loop runner entrypoint.
+description: 대상 프로젝트에 PRD, 작업 파일, 조향 메모, 루프 실행 진입점을 포함한 Ralph 실행 환경을 설치합니다.
 metadata:
   priority: 5
   pathPatterns:

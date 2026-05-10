@@ -1,6 +1,6 @@
 ---
 name: summit-document-gate
-description: Review Markdown proposal or document source before rendering, then feed the findings back into the PRD, context packet, and next Ralph pass.
+description: 렌더링 전에 Markdown 원고를 검토하고 결과를 PRD, 컨텍스트, 다음 Ralph 실행에 반영합니다.
 metadata:
   priority: 4
   pathPatterns:

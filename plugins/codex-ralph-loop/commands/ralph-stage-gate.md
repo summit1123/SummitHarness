@@ -1,3 +1,7 @@
+---
+description: Ralph 단계 산출물을 평가하고 실패하면 재작업 항목과 되돌아갈 지점을 만듭니다.
+---
+
 # /ralph-stage-gate
 
 Evaluate a machine-readable SummitHarness stage artifact.

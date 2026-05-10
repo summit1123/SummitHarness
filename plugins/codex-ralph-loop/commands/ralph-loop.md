@@ -1,5 +1,5 @@
 ---
-description: Start a Stop-hook Ralph loop in the current project. Usage: /ralph-loop "<task>" --completion-promise "<promise>COMPLETE</promise>" [--max-iterations <n>]
+description: 현재 프로젝트에서 중지 훅 기반 Ralph 루프를 시작합니다. 기본은 완료될 때까지 반복입니다.
 ---
 
 # /ralph-loop

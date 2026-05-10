@@ -1,5 +1,5 @@
 ---
-description: Turn the current brief into a project-specific SummitHarness task graph.
+description: 현재 실행 요약을 프로젝트 전용 SummitHarness 작업 그래프로 바꿉니다.
 ---
 
 # /summit-write-plan

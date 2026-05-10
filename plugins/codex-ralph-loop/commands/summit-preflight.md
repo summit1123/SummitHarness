@@ -1,3 +1,7 @@
+---
+description: Ralph 실행 전에 현재 프로젝트의 환경, 훅, 도구 준비 상태를 점검합니다.
+---
+
 # /summit-preflight
 
 Run the SummitHarness environment checks for the current project.

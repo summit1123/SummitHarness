@@ -4,6 +4,20 @@
 
 핵심은 반복 자체가 아니라, 지금 다루는 산출물이 proposal인지, PRD인지, 구현인지, product-ui인지에 따라 판단 기준을 바꾸는 것입니다.
 
+## 사용자 진입점
+
+일반 사용자는 여러 skill을 직접 고를 필요가 없습니다.
+
+권장 진입점은 **`ralph start`** 입니다. 여기서 작업 목표, 산출물 성격, 승인 기준, 필요한 리서치나 디자인 단계를 먼저 정리하고, 이후 필요한 내부 skill을 순서대로 사용합니다.
+
+`/` 메뉴나 skill picker에 Ralph 관련 항목이 많이 보이는 이유는 이 플러그인이 slash command와 skill을 함께 번들하기 때문입니다.
+
+- `commands/`: 사용자가 직접 호출하는 명령입니다. 예: `/ralph`, `/ralph-start`, `/summit-intake`
+- `skills/`: Codex가 특정 단계에서 참고하는 역할별 지침입니다. 예: `ralph-prd`, `summit-pdf-gate`
+- `templates/`: 대상 프로젝트에 복사되는 `.codex-loop/`, `ralph.sh`, 실행 스크립트입니다.
+
+따라서 public UX는 `ralph start` 중심이고, 나머지 skill은 내부 엔진의 부품처럼 보면 됩니다.
+
 ## 이 플러그인이 필요한 이유
 
 기본적인 Ralph-style loop만으로는 아래 문제가 자주 생깁니다.
@@ -235,6 +249,30 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `/ralph-stage-gate`
 - `/ralph-loop ...`
 - `/cancel-ralph`
+
+## 번들 skill 목록
+
+이 skill들은 플러그인 설치 시 함께 등록됩니다. 목록에 보이더라도 사용자가 항상 직접 선택해야 하는 것은 아닙니다.
+
+| Skill | 언제 쓰이나 |
+| --- | --- |
+| `ralph-start` | 사용자가 `ralph start`라고 말하거나 Ralph 온보딩을 시작할 때 사용합니다. |
+| `summit-intake` | 목표, 산출물, 금지사항, 승인 기준을 Q&A로 잠글 때 사용합니다. |
+| `summit-research-plan` | deep research, 선택지 비교, 권장 방향 승인이 필요할 때 사용합니다. |
+| `ralph-brainstorm` | 아이디어가 아직 흐릿해서 문제와 해결 방향을 좁혀야 할 때 사용합니다. |
+| `ralph-prd` | 요구사항을 PRD, 요약, task graph로 바꿀 때 사용합니다. |
+| `ralph-bootstrap` | 대상 repo에 project-local Ralph runtime을 설치할 때 사용합니다. |
+| `codex-ralph-loop` | `.codex-loop` 상태를 기준으로 실제 반복 실행을 돌릴 때 사용합니다. |
+| `ralph-runtime` | loop 실행, worker, review, evaluator, replan 흐름을 조정할 때 사용합니다. |
+| `ralph-design-gate` | 제품 UI와 디자인 산출물의 품질 기준을 강하게 검수할 때 사용합니다. |
+| `ralph-review-gate` | 코드 리뷰, 회귀 위험, 누락 테스트를 확인할 때 사용합니다. |
+| `summit-document-gate` | Markdown 원고를 먼저 검토하고 PDF-only 수정을 막을 때 사용합니다. |
+| `summit-pdf-gate` | 최종 PDF의 잘림, 빈 페이지, 표 깨짐, 파일명 문제를 확인할 때 사용합니다. |
+| `summit-visual-pipeline` | reference pack, asset, Figma, 이미지 자료를 정리할 때 사용합니다. |
+| `summit-context-engine` | 긴 작업의 핵심 결정, 사실, 다음 행동을 압축 handoff로 유지할 때 사용합니다. |
+| `summit-preflight` | Codex hook, MCP 힌트, 렌더링 도구, 테스트 도구 상태를 점검할 때 사용합니다. |
+
+별도로 `Summit Ralph Personal`은 개인 overlay입니다. 플러그인 공용 기능이 아니라 사용자 취향, 문체, 디자인 금지 기준, 완료 기준을 더 엄격하게 덮어씌우는 역할입니다.
 
 ## 검증
 

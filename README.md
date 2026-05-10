@@ -5,6 +5,20 @@
 
 제안서는 제안서답게, PRD는 PRD답게, 구현은 구현답게, UI는 실제 제품 화면답게 다뤄야 합니다. `SummitHarness`는 그 차이를 workflow, mode, source of truth, evaluator, design contract에 모두 반영합니다.
 
+## 사용자는 무엇만 알면 되나
+
+대부분의 사용자는 **`ralph start` 하나로 시작하면 됩니다.**
+
+`/` 메뉴나 skill picker에 `Ralph Prd`, `Summit Intake`, `Ralph Bootstrap`, `Summit PDF Gate` 같은 항목이 많이 보일 수 있습니다. 이 항목들은 사용자가 매번 직접 고르기 위한 메뉴라기보다, `ralph start` 이후 Codex가 단계별로 참고하는 **내부 역할 모듈**입니다.
+
+권장 public surface는 아래처럼 단순하게 봅니다.
+
+- `ralph start`: 온보딩, 목표 확인, 작업 성격 분류, 승인 기준 잠금
+- `ralph run` 또는 `./ralph.sh`: 프로젝트 로컬 loop 실행
+- `ralph gate`: stage gate와 산출물 정합성 점검
+
+나머지 skill들은 플러그인에 함께 번들되어 있기 때문에 목록에 보입니다. 필요하면 직접 선택할 수 있지만, 기본 사용 흐름에서는 `ralph start`가 적절한 skill을 순서대로 호출하도록 설계되어 있습니다.
+
 ## 왜 필요한가
 
 기본적인 반복 루프만으로는 아래 문제가 자주 생깁니다.
@@ -149,6 +163,30 @@ python3 scripts/context_engine.py refresh --source bootstrap
 - `.codex-loop/artifacts/pdf-review/`: PDF 리뷰 결과
 - `.codex-loop/assets/registry.json`: 승인된 asset 목록
 - `.codex-loop/stage-gates/`: all-rounder Ralph의 JSON stage artifacts, gate spec, 평가 결과
+
+## 번들된 skill은 무엇인가
+
+아래 skill들은 `Codex Ralph Loop` 플러그인에 함께 포함됩니다. 사용자가 직접 고르기보다는, `ralph start`와 loop가 현재 단계에 맞게 참고하는 역할별 지침으로 이해하면 됩니다.
+
+| Skill | 역할 |
+| --- | --- |
+| `ralph-start` | 첫 진입점입니다. 사용자의 목표, 산출물, 범위, 작업 유형을 확인하고 온보딩을 시작합니다. |
+| `summit-intake` | 작업 전 Q&A와 승인 기준을 정리합니다. 기획서, 개발, 디자인처럼 성격이 다른 작업의 질문을 나눕니다. |
+| `summit-research-plan` | deep research 계획, 선택지 비교, 권장 방향 승인을 다룹니다. |
+| `ralph-brainstorm` | 흐릿한 아이디어를 구체적인 문제, 대상, 해결 방향으로 좁힙니다. |
+| `ralph-prd` | 요구사항을 PRD, 요약, task graph로 바꿉니다. |
+| `ralph-bootstrap` | 대상 프로젝트에 `.codex-loop/`, `ralph.sh`, 실행 스크립트를 설치합니다. |
+| `codex-ralph-loop` | PRD, task, context, checks, review, evaluator를 기준으로 실제 loop를 실행합니다. |
+| `ralph-runtime` | loop 실행 중 worker, review, evaluator, replan 흐름을 다룹니다. |
+| `ralph-design-gate` | UI/UX와 디자인 산출물이 generic하게 무너지지 않도록 검수합니다. |
+| `ralph-review-gate` | 코드, 회귀 위험, 누락 테스트를 검토합니다. |
+| `summit-document-gate` | Markdown 원고를 먼저 검토해 PDF-only 수정을 막습니다. |
+| `summit-pdf-gate` | PDF를 최종 패키징 결과물로 보고 잘림, 빈 페이지, 표 깨짐 등을 확인합니다. |
+| `summit-visual-pipeline` | reference pack, asset, Figma, 이미지 자료 등 시각 입력을 정리합니다. |
+| `summit-context-engine` | 긴 작업에서 필요한 사실, 결정, 다음 행동만 압축해 handoff로 유지합니다. |
+| `summit-preflight` | Codex hook, 도구, 렌더링, 테스트 환경을 점검합니다. |
+
+`personal-skills/summit-ralph-personal/`은 플러그인 본체가 아니라 개인 overlay입니다. 사용자의 문체, 디자인 취향, 완료 기준처럼 개인화된 판단 기준을 덧씌웁니다.
 
 ## 레퍼런스 팩
 

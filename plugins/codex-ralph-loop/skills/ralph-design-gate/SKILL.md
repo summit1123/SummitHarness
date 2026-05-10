@@ -1,6 +1,6 @@
 ---
 name: ralph-design-gate
-description: Add or enforce a design and UX gate in the Codex Ralph loop so the product feels intentional rather than machine-default.
+description: 제품이 기계적으로 보이지 않도록 Ralph 루프에 디자인과 UX 검수 기준을 적용합니다.
 metadata:
   priority: 4
   pathPatterns:

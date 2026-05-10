@@ -1,6 +1,6 @@
 ---
 name: ralph-brainstorm
-description: Refine a rough goal into a trustworthy build brief before task planning or implementation starts.
+description: 거친 목표를 작업 계획이나 구현 전에 신뢰할 수 있는 제작 요약으로 다듬습니다.
 metadata:
   priority: 5
   pathPatterns:

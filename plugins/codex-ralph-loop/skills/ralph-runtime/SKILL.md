@@ -1,6 +1,6 @@
 ---
 name: ralph-runtime
-description: Run or refine the SummitHarness implementation loop, using project tasks, compressed handoff packets, local checks, and a read-only review gate.
+description: 프로젝트 작업, 압축 인계, 로컬 점검, 읽기 전용 리뷰 검수를 사용해 구현 루프를 실행하거나 다듬습니다.
 metadata:
   priority: 5
   pathPatterns:

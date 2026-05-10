@@ -1,6 +1,6 @@
 ---
 name: summit-intake
-description: Use when a SummitHarness project needs a structured kickoff Q&A, role-specific clarification, and explicit approval before autonomous planning or coding starts.
+description: 자동 기획이나 코딩 전에 구조화된 kickoff Q&A, 역할별 확인, 명시적 승인을 잠급니다.
 ---
 
 # Summit Intake

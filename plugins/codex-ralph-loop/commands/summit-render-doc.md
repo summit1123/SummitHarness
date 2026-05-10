@@ -1,3 +1,7 @@
+---
+description: 승인된 Markdown 제출 원고를 HTML과 PDF 산출물로 렌더링합니다.
+---
+
 # /summit-render-doc
 
 Render the approved Markdown source into HTML and PDF.

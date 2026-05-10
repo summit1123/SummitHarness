@@ -1,3 +1,7 @@
+---
+description: 승인된 인테이크, 리서치, PRD, 작업 그래프를 기준으로 프로젝트 로컬 Ralph 실행 루프를 시작합니다.
+---
+
 # /run-codex-ralph
 
 Run the project-local SummitHarness loop.

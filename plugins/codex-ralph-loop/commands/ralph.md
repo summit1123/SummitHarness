@@ -1,5 +1,5 @@
 ---
-description: Route /ralph subcommands to SummitHarness onboarding, run, gate, and cancel workflows.
+description: /ralph 하위 명령을 온보딩, 실행, 검수, 취소 흐름으로 연결합니다.
 ---
 
 # /ralph

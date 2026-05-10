@@ -1,6 +1,6 @@
 ---
 name: summit-ralph-personal
-description: Personal overlay for Codex Ralph loop runs, adding user-specific product taste, review strictness, and completion standards.
+description: 사용자의 제품 취향, 리뷰 엄격도, 완료 기준을 Ralph 루프에 덧씌우는 개인 설정입니다.
 ---
 
 # Summit Ralph Personal

@@ -1,3 +1,8 @@
+---
+name: summit-start
+description: 새 저장소나 새 대화에서 Ralph가 바로 달리지 않도록 목표, 범위, 승인 기준을 먼저 확인하는 시작 흐름입니다.
+---
+
 # Summit Start
 
 Plain-text aliases: `ralph start`, `Ralph start`, `start Ralph`, `ralph onboarding`.

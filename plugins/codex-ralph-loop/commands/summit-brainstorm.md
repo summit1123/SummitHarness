@@ -1,5 +1,5 @@
 ---
-description: Refine the current goal into a sharper brief before task planning starts.
+description: 작업 계획 전에 현재 목표를 더 선명한 실행 요약으로 다듬습니다.
 ---
 
 # /summit-brainstorm
