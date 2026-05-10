@@ -15,6 +15,7 @@ description: 작업 생성 전에 단계형 심층 리서치 계획을 만들고
 5. 권장 방향과 실행 단계를 `.codex-loop/research/APPROVAL.md`에 잠급니다.
 6. 리서치 방향이 실제로 승인되었을 때만 `상태: 승인`과 `승인: 예`로 바꿉니다.
 7. `python3 scripts/context_engine.py refresh --source research`를 실행합니다.
+8. 응답 마지막에 다음 입력값을 안내합니다. 승인이 아직이면 `다음에 입력할 명령: /summit-research-plan`, 승인됐으면 `다음에 입력할 명령: /summit-write-plan`입니다.
 
 ## 참고
 

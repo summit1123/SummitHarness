@@ -18,6 +18,8 @@
 
 따라서 public UX는 `ralph start` 중심이고, 나머지 skill은 내부 엔진의 부품처럼 보면 됩니다.
 
+사용자가 skill picker에서 다음 항목을 직접 고르지 않도록, 각 단계의 마지막 응답에는 **`다음에 입력할 명령: ...`** 형식의 안내를 남깁니다. 예를 들어 온보딩이 끝나면 `/summit-intake`, 인테이크가 승인되면 `/summit-research-plan`, 리서치가 승인되면 `/summit-write-plan`, task graph가 준비되면 `/ralph run`으로 이어집니다.
+
 ## 이 플러그인이 필요한 이유
 
 기본적인 Ralph-style loop만으로는 아래 문제가 자주 생깁니다.
@@ -183,6 +185,17 @@ ralph start
 6. PRD, SUMMARY, DESIGN.md를 현재 방향에 맞게 고칩니다.
 7. reference pack을 선택합니다.
 8. proposal이면 Markdown source부터 씁니다.
+
+대화형 UX에서는 매 단계 끝에서 다음 입력값을 보여줍니다.
+
+```text
+다음에 입력할 명령: /summit-intake
+다음에 입력할 명령: /summit-research-plan
+다음에 입력할 명령: /summit-write-plan
+다음에 입력할 명령: /ralph run
+```
+
+문서 제출 흐름에서는 `/summit-review-doc -> /summit-render-doc -> /summit-review-pdf`가 사이에 들어갈 수 있습니다.
 8. source review -> render -> pdf review 순서로 검수합니다.
 9. context를 refresh합니다.
 10. `python3 scripts/ralph_stage_gate.py orchestrate --start onboarding --end eval --requirement "<requirement>"`로 stage gate를 순서대로 checkpoint합니다. 단일 stage는 `checkpoint --stage <stage>`를 쓰고, 이미 worker가 custom artifact를 만들었다면 `evaluate --artifact <path>`를 사용합니다.

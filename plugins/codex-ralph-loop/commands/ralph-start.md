@@ -30,6 +30,7 @@ description: SummitHarness 온보딩을 시작하고 목표에 맞는 작업 흐
 10. 현재 workflow stage에 맞게 intake와 research 문서를 초기화하거나 갱신하고, context packet을 갱신한 뒤 올바른 다음 stage를 요약합니다.
 11. approval 문서를 실제 승인된 것처럼 쓰지 않습니다. 사용자가 실제로 확인할 때까지 pending 상태로 둡니다.
 12. 사용자가 첫 stage를 정직하게 승인할 수 있을 정도로 명확해지기 전에는 자율 Ralph loop를 시작하지 않습니다. 온보딩 깊이가 속도보다 중요합니다.
+13. 응답 마지막에는 항상 사용자가 직접 고르지 않아도 되도록 `다음에 입력할 명령: ...`을 적습니다. 보통 온보딩 직후에는 `다음에 입력할 명령: /summit-intake`입니다.
 
 ## Notes
 

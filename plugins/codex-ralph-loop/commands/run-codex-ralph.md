@@ -34,3 +34,4 @@ Run the project-local SummitHarness loop.
 - The goal evaluator can reopen or extend the task graph when the plan no longer matches the real goal.
 - The PDF gate is for truthful attachments, not cosmetic polishing. Fix the source or task graph when it finds drift.
 - For same-session Stop-hook Ralph, use `/ralph-loop ...` instead.
+- End the response with the next exact command if the loop stops short, for example `다음에 입력할 명령: /ralph run`, `/summit-intake`, `/summit-research-plan`, or `/summit-review-doc`.

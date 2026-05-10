@@ -1223,6 +1223,72 @@ if __name__ == "__main__":
             self.assertIn("### C2. 이번 런은 어디까지 진행하면 된다고 보십니까? 즉, 이번에 멈출 지점은 어디입니까?", onboarding)
             self.assertLess(onboarding.index("### C1. 이번 런에서 지금 사용자가 하고 싶은 일은 무엇입니까?"), onboarding.index("### C3. 이번 런의 최종 산출물은 무엇입니까?"))
 
+    def test_stage_commands_print_next_input_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            bootstrap = subprocess.run([sys.executable, str(BOOTSTRAP), str(root)], text=True, capture_output=True, check=True)
+            self.assertIn("다음에 입력할 명령: ralph start", bootstrap.stdout)
+
+            start = subprocess.run(
+                [sys.executable, str(root / "scripts" / "summit_start.py"), "init", "--profile", "build-direct", "--goal", "Ship a real feature", "--force"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            self.assertIn("다음에 입력할 명령: /summit-intake", start.stdout)
+
+            intake_init = subprocess.run(
+                [sys.executable, str(root / "scripts" / "summit_intake.py"), "init", "--mode", "implementation"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            self.assertIn("다음에 입력할 명령: /summit-intake", intake_init.stdout)
+
+            intake_status = subprocess.run(
+                [sys.executable, str(root / "scripts" / "summit_intake.py"), "status"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            self.assertIn("다음에 입력할 명령: /summit-intake", intake_status.stdout)
+
+            intake_approval = root / ".codex-loop" / "intake" / "APPROVAL.md"
+            intake_text = intake_approval.read_text(encoding="utf-8")
+            intake_approval.write_text(intake_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예"), encoding="utf-8")
+            intake_approved = subprocess.run(
+                [sys.executable, str(root / "scripts" / "summit_intake.py"), "status"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            self.assertIn("다음에 입력할 명령: /summit-research-plan", intake_approved.stdout)
+
+            research_init = subprocess.run(
+                [sys.executable, str(root / "scripts" / "summit_research.py"), "init", "--mode", "implementation"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            self.assertIn("다음에 입력할 명령: /summit-research-plan", research_init.stdout)
+
+            research_approval = root / ".codex-loop" / "research" / "APPROVAL.md"
+            research_text = research_approval.read_text(encoding="utf-8")
+            research_approval.write_text(research_text.replace("상태: 대기", "상태: 승인").replace("승인: 아니오", "승인: 예"), encoding="utf-8")
+            research_approved = subprocess.run(
+                [sys.executable, str(root / "scripts" / "summit_research.py"), "status"],
+                cwd=root,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+            self.assertIn("다음에 입력할 명령: /summit-write-plan", research_approved.stdout)
+
     def test_context_engine_recent_progress_is_empty_without_iterations(self) -> None:
         mod = load_module(CONTEXT_ENGINE, "context_engine_test")
         with tempfile.TemporaryDirectory() as tmp:

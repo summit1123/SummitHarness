@@ -14,6 +14,7 @@ Replace the bootstrap task graph with a real, dependency-ordered SummitHarness p
 4. Keep the graph small enough to execute, usually 3 to 7 tasks.
 5. Give each task explicit deliverables, acceptance criteria, and real dependencies.
 6. Run `python3 scripts/context_engine.py refresh --source plan` and summarize the new next step.
+7. End with the exact next command. Usually: `다음에 입력할 명령: /ralph run`
 
 ## Notes
 

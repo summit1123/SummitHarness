@@ -11,3 +11,4 @@ Markdown 원고 점검을 통과한 뒤 최종 PDF 첨부본을 점검합니다.
 3. `.codex-loop/artifacts/pdf-review/`에 생성된 리포트를 확인합니다.
 4. 파일명, 용량, 패키징 문제를 수정합니다.
 5. `python3 scripts/context_engine.py refresh --source pdf-review`로 컨텍스트를 갱신합니다.
+6. PDF blocker가 남아 있으면 `다음에 입력할 명령: /summit-review-pdf`, 통과했으면 `다음에 입력할 명령: /ralph run` 또는 제출이면 `다음에 입력할 명령: 제출 폼으로 이동`을 안내합니다.

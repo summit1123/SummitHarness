@@ -286,6 +286,12 @@ def research_gate_message(status: dict[str, Any]) -> str:
     return f'첫 seed 실행 전까지 `.codex-loop/research/APPROVAL.md`를 승인 상태로 잠그고, 단계형 deep research 계획을 완료하세요 ({missing}).'
 
 
+def next_public_command(status: dict[str, Any]) -> str:
+    if status.get('approved'):
+        return '/summit-write-plan'
+    return '/summit-research-plan'
+
+
 def command_init(root: Path, mode: str, depth: str, force: bool) -> int:
     state_dir = state_dir_from(root)
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -298,6 +304,7 @@ def command_init(root: Path, mode: str, depth: str, force: bool) -> int:
     print('  2. `FINDINGS.md`에 근거와 기각한 방향을 기록합니다.')
     print('  3. `APPROVAL.md`에 권장 방향과 단계별 실행 계획을 잠급니다.')
     print('  4. 실제 승인 후 `승인: 예`와 `상태: 승인`으로 변경합니다.')
+    print('다음에 입력할 명령: /summit-research-plan')
     return 0
 
 
@@ -328,6 +335,7 @@ def command_status(root: Path, as_json: bool) -> int:
         for item in payload['summary']:
             print(item)
     print(f"다음 단계: {payload['nextStep']}")
+    print(f"다음에 입력할 명령: {next_public_command(status)}")
     return 0
 
 

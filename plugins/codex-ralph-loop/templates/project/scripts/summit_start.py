@@ -429,6 +429,25 @@ def workflow_seed_gate_message(status: dict[str, Any]) -> str:
     return f'현재 워크플로우 단계 `{current}` 는 아직 task seed 생성 이전 단계입니다. 온보딩, 아이디어 정리, 리서치를 먼저 마무리한 뒤 workflow를 다음 단계로 넘기세요.{next_hint}'
 
 
+def next_public_command_for_stage(profile: str, stage_id: str) -> str:
+    stage = (stage_id or '').strip()
+    if not stage:
+        return 'ralph start'
+    if stage == 'onboarding':
+        return '/summit-intake'
+    if stage in {'idea-screening', 'insight-and-idea-options', 'brief-lock', 'deep-research', 'technical-research'}:
+        return '/summit-research-plan'
+    if stage in {'prd-and-task-graph', 'task-graph', 'product-plan', 'approval-lock'}:
+        return '/summit-write-plan'
+    if stage in {'proposal-package', 'review-and-submit'}:
+        return '/summit-review-doc'
+    if stage in {'design-system-and-flows'}:
+        return '/summit-visual-pipeline'
+    if stage in {'backend-and-data', 'frontend-integration', 'implementation', 'verification', 'end-to-end-verification'}:
+        return '/ralph run'
+    return '/ralph gate'
+
+
 def workflow_status_block(state_dir: Path) -> str:
     status = load_workflow_status(state_dir)
     if not status.get('initialized'):
@@ -466,6 +485,7 @@ def command_init(root: Path, profile: str, goal: str, force: bool) -> int:
     print('  2. 아이디어가 열려 있다면 `workflow/IDEAS.md`에서 옵션을 비교하고 하나를 잠급니다.')
     print('  3. 현재 단계 모드에 맞게 intake 승인과 research 승인을 완료합니다.')
     print('  4. `python3 scripts/context_engine.py refresh --source workflow-start`로 컨텍스트를 갱신합니다.')
+    print(f'다음에 입력할 명령: {next_public_command_for_stage(normalized, spec["stages"][0]["id"])}')
     return 0
 
 
@@ -485,6 +505,7 @@ def command_advance(root: Path, stage: str) -> int:
     ensure_research_files(state_dir, target['mode'], spec['research_depth'], force=False)
     sync_status_file(state_dir, profile, goal, stage_id=stage)
     print(f'워크플로우 `{profile}` 를 `{stage}` 단계({target["mode"]})로 이동했습니다.')
+    print(f'다음에 입력할 명령: {next_public_command_for_stage(profile, stage)}')
     return 0
 
 
@@ -495,7 +516,8 @@ def command_status(root: Path, as_json: bool) -> int:
         return 0
     if not status.get('initialized'):
         print('워크플로우 프로필: 초기화되지 않음')
-        print('다음 단계: 먼저 사용자에게 이번 런에서 무엇을 하고 싶은지 물은 뒤 `/ralph-start` 또는 `python3 scripts/summit_start.py init --profile ... --goal ...` 를 사용하세요.')
+        print('다음 단계: 먼저 사용자에게 이번 런에서 무엇을 하고 싶은지 물은 뒤 `ralph start` 또는 `/ralph start`를 사용하세요.')
+        print('다음에 입력할 명령: ralph start')
         return 0
     print(f"프로필: {status['profile']}")
     print(f"현재 단계: {status['currentStage']} ({status['currentMode']})")
@@ -504,6 +526,7 @@ def command_status(root: Path, as_json: bool) -> int:
     print('요약:')
     for item in status.get('summary', []):
         print(item)
+    print(f"다음에 입력할 명령: {next_public_command_for_stage(str(status['profile']), str(status['currentStage']))}")
     return 0
 
 

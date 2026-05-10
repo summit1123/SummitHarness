@@ -149,6 +149,7 @@ def main() -> int:
     print(' 18. `python3 scripts/context_engine.py refresh --source bootstrap`로 첫 handoff packet을 만듭니다.')
     print(' 19. 기본 실행은 `./ralph.sh`입니다. `--once`는 smoke 또는 디버그용 1회 실행으로만 사용하고, 실제 Ralph 런은 `./ralph.sh` 또는 `/ralph-loop`로 시작합니다.')
     print('     -> 첫 Ralph 실행은 bootstrap template task를 프로젝트 전용 task graph로 교체합니다. 단, intake와 research 승인이 잠겨 있어야 합니다.')
+    print('다음에 입력할 명령: ralph start')
     return 0
 
 

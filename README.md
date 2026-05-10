@@ -19,6 +19,8 @@
 
 나머지 skill들은 플러그인에 함께 번들되어 있기 때문에 목록에 보입니다. 필요하면 직접 선택할 수 있지만, 기본 사용 흐름에서는 `ralph start`가 적절한 skill을 순서대로 호출하도록 설계되어 있습니다.
 
+각 단계가 끝나면 사용자가 다음 skill을 찾아 고르지 않아도 되도록, 응답 마지막에 **`다음에 입력할 명령: ...`** 형식으로 다음 입력값을 안내합니다.
+
 ## 왜 필요한가
 
 기본적인 반복 루프만으로는 아래 문제가 자주 생깁니다.
@@ -127,6 +129,18 @@ ralph start
 11. source review, render, pdf review 순서로 검수합니다.
 12. `python3 scripts/context_engine.py refresh --source bootstrap`로 handoff를 갱신합니다.
 13. 기본 실행은 `./ralph.sh`입니다. `--once`는 smoke 또는 디버그용 1회 실행일 뿐이고, 실제 Ralph 런은 완료될 때까지 계속 도는 기본 실행을 권장합니다.
+
+일반적인 안내 흐름은 아래처럼 보입니다.
+
+```text
+ralph start
+다음에 입력할 명령: /summit-intake
+다음에 입력할 명령: /summit-research-plan
+다음에 입력할 명령: /summit-write-plan
+다음에 입력할 명령: /ralph run
+```
+
+제안서나 PDF 패키징 작업이면 중간에 `/summit-review-doc`, `/summit-render-doc`, `/summit-review-pdf`가 안내될 수 있습니다.
 
 ## 제안서 작업 예시
 

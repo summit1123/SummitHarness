@@ -21,3 +21,4 @@ If the user types `/ralph` with no subcommand, treat it as `/ralph start` unless
 - Do not skip or compress onboarding when routing to `start`.
 - Do not infer approval from draft files.
 - Do not start autonomous looping from `/ralph start`; only prepare the correct journey and next stage.
+- At the end of every routed stage, tell the user the exact next command to type using `다음에 입력할 명령: ...`.

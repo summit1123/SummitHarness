@@ -39,6 +39,12 @@ or:
 
 The start step is not a build loop. It is the onboarding interview. It must ask what the user wants to do, where this run should stop, what the final deliverable is, and what evidence makes completion honest before any profile or task graph is locked.
 
+At the end of each stage, Ralph should tell the user the exact next input:
+
+```text
+다음에 입력할 명령: /summit-intake
+```
+
 ## 4. Lock Inputs
 
 Fill and approve:
@@ -53,6 +59,8 @@ Fill and approve:
 Approval must be explicit. Draft approval files do not count.
 
 Do not run `python3 scripts/summit_start.py init --profile ... --goal ...` as a shortcut before onboarding is clear. That command is only the document initialization step after the workflow profile, goal, scope, approval path, and evidence bar are explicit.
+
+When a lock passes, continue with the command shown at the end of the previous response instead of picking internal skills manually.
 
 ## 5. Run Stage Gates
 

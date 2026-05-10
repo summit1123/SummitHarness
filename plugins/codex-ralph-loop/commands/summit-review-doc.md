@@ -11,3 +11,4 @@ description: PDF 렌더링 전에 Markdown 원고의 내용, 구조, 제출 적�
 3. `.codex-loop/artifacts/source-review/`에 생성된 리포트를 확인합니다.
 4. 레이아웃만이 아니라 원고 자체를 수정합니다.
 5. `python3 scripts/context_engine.py refresh --source source-review`로 컨텍스트를 갱신합니다.
+6. 원고 blocker가 남아 있으면 `다음에 입력할 명령: /summit-review-doc`, 통과했으면 `다음에 입력할 명령: /summit-render-doc`을 안내합니다.

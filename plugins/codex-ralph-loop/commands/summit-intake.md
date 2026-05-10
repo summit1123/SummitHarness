@@ -15,6 +15,7 @@ description: 모드에 맞는 인테이크 Q&A를 진행하고 첫 seed 실행 �
 5. 목표, 범위, 산출물, 필수 증거 기준을 `.codex-loop/intake/APPROVAL.md`에 잠급니다.
 6. 요청자가 실제로 승인했을 때만 `상태: 승인`과 `승인: 예`로 바꿉니다.
 7. `python3 scripts/context_engine.py refresh --source intake`를 실행합니다.
+8. 응답 마지막에 다음 입력값을 안내합니다. 승인이 아직이면 `다음에 입력할 명령: /summit-intake`, 승인됐으면 `다음에 입력할 명령: /summit-research-plan`입니다.
 
 ## 참고
 

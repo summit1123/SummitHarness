@@ -459,6 +459,12 @@ def intake_gate_message(status: dict[str, Any]) -> str:
     return f'첫 seed 실행 전까지 `.codex-loop/intake/APPROVAL.md`를 승인 상태로 잠그고, 모드에 맞는 인테이크 Q&A를 완료하세요 ({missing}).'
 
 
+def next_public_command(status: dict[str, Any]) -> str:
+    if status.get('approved'):
+        return '/summit-research-plan'
+    return '/summit-intake'
+
+
 def command_init(root: Path, mode: str, force: bool) -> int:
     state_dir = state_dir_from(root)
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -471,6 +477,7 @@ def command_init(root: Path, mode: str, force: bool) -> int:
     print('  2. 승인된 목표, 산출물, 증거 기준을 `.codex-loop/intake/APPROVAL.md`에 잠급니다.')
     print('  3. 실제 승인 후 `승인: 예`와 `상태: 승인`으로 변경합니다.')
     print('  4. `python3 scripts/context_engine.py refresh --source intake`로 컨텍스트를 갱신합니다.')
+    print('다음에 입력할 명령: /summit-intake')
     return 0
 
 
@@ -502,6 +509,7 @@ def command_status(root: Path, as_json: bool) -> int:
         for item in payload['lockSummary']:
             print(item)
     print(f"다음 단계: {payload['nextStep']}")
+    print(f"다음에 입력할 명령: {next_public_command(status)}")
     return 0
 
 
